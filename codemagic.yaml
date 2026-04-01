@@ -1,0 +1,56 @@
+workflows:
+  ios-release:
+    name: iOS Release (Ad Hoc)
+    max_build_duration: 60
+    environment:
+      flutter: 3.32.2
+      xcode: latest
+      cocoapods: default
+      vars:
+        BUNDLE_ID: "com.example.acilYardim"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+    scripts:
+      - name: Flutter pub get
+        script: flutter pub get
+
+      - name: Pod install
+        script: |
+          cd ios
+          pod install --repo-update
+
+      - name: Build iOS IPA
+        script: |
+          flutter build ios --release --no-codesign
+
+          # Ad Hoc signing için xcodebuild
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -archivePath "$CM_BUILD_DIR/Runner.xcarchive" \
+            archive \
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
+
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$CM_BUILD_DIR/Runner.xcarchive" \
+            -exportPath "$CM_BUILD_DIR/ipa" \
+            -exportOptionsPlist ios/ExportOptions.plist
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - $CM_BUILD_DIR/ipa/*.ipa
+
+    publishing:
+      email:
+        recipients:
+          - mesut@eksweb.com
+        notify:
+          success: true
+          failure: true

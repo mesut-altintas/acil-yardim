@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "712176340011",
+    "project_id": "acilyardim-aeaf4",
+    "storage_bucket": "acilyardim-aeaf4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:712176340011:android:a80204ecbe8271f1022e6e",
+        "android_client_info": {
+          "package_name": "com.example.acil_yardim"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "712176340011-qfaeefu4heac7qhnag115drnqfe9vrl9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJAaocvaqOKcA7CYjbsZPP4G0miQmp7u0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "712176340011-qfaeefu4heac7qhnag115drnqfe9vrl9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

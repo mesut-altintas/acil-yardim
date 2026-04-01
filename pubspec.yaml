@@ -1,0 +1,56 @@
+name: acil_yardim
+description: AB Shutter 3 ile tetiklenen acil yardım uygulaması
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
+  cloud_functions: ^5.1.4
+  firebase_messaging: ^15.1.4
+
+
+  # Konum servisleri
+  geolocator: ^13.0.1
+  geocoding: ^3.0.0
+
+  # Telefon rehberi
+  flutter_contacts: ^1.1.9+2
+
+  # URL açma (yedek arama için)
+  url_launcher: ^6.3.1
+
+  # İzin yönetimi
+  permission_handler: ^11.3.1
+
+  # Yerel bildirimler
+  flutter_local_notifications: ^17.2.3
+
+  # Güvenli veri saklama
+  flutter_secure_storage: ^9.2.2
+
+  # Google ile giriş
+  google_sign_in: ^6.2.1
+
+  # Sürükle-bırak liste sıralaması
+  flutter_reorderable_list: ^1.0.0
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/

@@ -1,0 +1,145 @@
+// Kişi yönetim servisi
+// Telefon rehberinden kişi seçme ve Firestore'a kaydetme işlemleri
+
+import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import '../models/emergency_contact.dart';
+import 'firestore_service.dart';
+
+class ContactService {
+  // Singleton pattern
+  static final ContactService _instance = ContactService._internal();
+  factory ContactService() => _instance;
+  ContactService._internal();
+
+  final FirestoreService _firestoreService = FirestoreService();
+
+  // ─────────────────────────────────────────────
+  // Telefon rehberinden kişi seç
+  // ─────────────────────────────────────────────
+
+  /// Rehber izni iste ve kişi seçici aç
+  Future<Contact?> pickContact() async {
+    // Rehber iznini kontrol et ve iste
+    final status = await Permission.contacts.request();
+    if (!status.isGranted) {
+      throw Exception('Rehber erişim izni reddedildi');
+    }
+
+    // Flutter Contacts paketi ile sistem rehber seçicisini aç
+    final contact = await FlutterContacts.openExternalPick();
+    return contact;
+  }
+
+  /// Seçilen rehber kişisini acil kişi olarak kaydet
+  Future<EmergencyContact> saveContactFromPhone(
+    Contact phoneContact, {
+    List<ContactChannel> channels = const [ContactChannel.notification],
+  }) async {
+    // İlk telefon numarasını al
+    if (phoneContact.phones.isEmpty) {
+      throw Exception('Bu kişinin telefon numarası yok');
+    }
+
+    // Numarayı E.164 formatına getir (başına + ekle, boşlukları temizle)
+    String phone = phoneContact.phones.first.number
+        .replaceAll(' ', '')
+        .replaceAll('-', '')
+        .replaceAll('(', '')
+        .replaceAll(')', '');
+
+    if (!phone.startsWith('+')) {
+      // Türkiye kodu ekle (0 ile başlıyorsa 0'ı kaldır)
+      if (phone.startsWith('0')) {
+        phone = '+9${phone}'; // 0532... → +90532...
+      } else {
+        phone = '+90$phone';
+      }
+    }
+
+    // Acil kişi oluştur
+    final emergencyContact = EmergencyContact(
+      id: '', // Firestore otomatik ID atayacak
+      name: phoneContact.displayName,
+      phone: phone,
+      channels: channels,
+    );
+
+    // Firestore'a kaydet
+    await _firestoreService.addContact(emergencyContact);
+
+    print('[ContactService] Kişi kaydedildi: ${emergencyContact.name} ($phone)');
+    return emergencyContact;
+  }
+
+  // ─────────────────────────────────────────────
+  // FCM Token yönetimi
+  // ─────────────────────────────────────────────
+
+  /// Cihazın FCM token'ını al
+  Future<String?> getDeviceFcmToken() async {
+    try {
+      // iOS için izin iste
+      final settings = await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      if (settings.authorizationStatus != AuthorizationStatus.authorized &&
+          settings.authorizationStatus != AuthorizationStatus.provisional) {
+        print('[ContactService] FCM bildirimi izni reddedildi');
+        return null;
+      }
+
+      final token = await FirebaseMessaging.instance.getToken();
+      print('[ContactService] FCM token alındı: ${token?.substring(0, 10)}...');
+      return token;
+    } catch (e) {
+      print('[ContactService] FCM token hatası: $e');
+      return null;
+    }
+  }
+
+  /// Kişinin FCM token'ını güncelle
+  Future<void> updateContactFcmToken(String contactId, String token) async {
+    await _firestoreService.updateFcmToken(contactId, token);
+  }
+
+  // ─────────────────────────────────────────────
+  // Kişi yönetimi
+  // ─────────────────────────────────────────────
+
+  /// Kişinin kanallarını güncelle
+  Future<void> updateContactChannels(
+    String contactId,
+    List<ContactChannel> channels,
+  ) async {
+    final contacts = await _firestoreService.getContacts();
+    final contact = contacts.firstWhere(
+      (c) => c.id == contactId,
+      orElse: () => throw Exception('Kişi bulunamadı: $contactId'),
+    );
+
+    await _firestoreService.updateContact(
+      contact.copyWith(channels: channels),
+    );
+  }
+
+  /// Kişiyi sil
+  Future<void> deleteContact(String contactId) async {
+    await _firestoreService.deleteContact(contactId);
+    print('[ContactService] Kişi silindi: $contactId');
+  }
+
+  /// Kişi sırasını güncelle (drag & drop sonrası)
+  Future<void> reorderContacts(List<EmergencyContact> contacts) async {
+    await _firestoreService.reorderContacts(contacts);
+  }
+
+  /// Tüm aktif kişileri getir
+  Future<List<EmergencyContact>> getActiveContacts() async {
+    return await _firestoreService.getContacts();
+  }
+}

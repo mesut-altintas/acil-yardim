@@ -1,0 +1,189 @@
+// AcilYardım — Firebase Cloud Functions
+// Node.js 22, firebase-functions v7 (v2 API), Blaze planı gereklidir
+
+const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
+const { setGlobalOptions } = require("firebase-functions/v2");
+const admin = require("firebase-admin");
+const twilio = require("twilio");
+
+admin.initializeApp();
+
+// Tüm fonksiyonlar için varsayılan bölge ve timeout ayarla
+setGlobalOptions({ region: "us-central1", timeoutSeconds: 120, memory: "256MiB" });
+
+// ─────────────────────────────────────────────────────────────
+// Ana acil yardım tetikleme fonksiyonu
+// Flutter uygulaması bu callable function'ı çağırır
+// ─────────────────────────────────────────────────────────────
+exports.triggerEmergency = onCall(async (request) => {
+  // Kimlik doğrulama zorunlu
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Bu işlem için giriş yapılmış olması gerekiyor.");
+  }
+
+  const { userId, latitude, longitude } = request.data;
+
+  // Gelen veriler geçerli mi kontrol et
+  if (!userId || latitude === undefined || longitude === undefined) {
+    throw new HttpsError("invalid-argument", "userId, latitude ve longitude zorunludur.");
+  }
+
+  // Firestore referansları
+  const userRef = admin.firestore().collection("users").doc(userId);
+
+  // Kullanıcı ayarlarını ve acil kişilerini paralel olarak çek
+  const [settingsDoc, contactsSnap] = await Promise.all([
+    userRef.collection("settings").doc("main").get(),
+    userRef.collection("contacts").orderBy("order").get(),
+  ]);
+
+  // Ayarlar belgesi yoksa hata fırlat
+  if (!settingsDoc.exists) {
+    throw new HttpsError("not-found", "Kullanıcı ayarları bulunamadı.");
+  }
+
+  const settings = settingsDoc.data();
+
+  // Uygulama pasif durumdaysa tetikleme yapma
+  if (!settings.isActive) {
+    return { success: false, reason: "Uygulama pasif durumda." };
+  }
+
+  // Google Maps linki oluştur
+  const mapsLink = `https://maps.google.com/?q=${latitude},${longitude}`;
+  const fullMessage = `🚨 ${settings.message}\n📍 Konum: ${mapsLink}`;
+
+  // Twilio istemcisi — .env dosyasından process.env ile oku
+  const twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
+
+  const contacts = contactsSnap.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+
+  // ── 1. ADIM: FCM Push Notification + WhatsApp mesajları ──
+  const notificationPromises = contacts.map(async (contact) => {
+    const errors = [];
+
+    // Firebase Cloud Messaging bildirimi gönder
+    if (contact.channels && contact.channels.includes("notification") && contact.fcmToken) {
+      try {
+        await admin.messaging().send({
+          token: contact.fcmToken,
+          notification: { title: "🚨 ACİL YARDIM", body: fullMessage },
+          data: {
+            type: "emergency",
+            latitude: String(latitude),
+            longitude: String(longitude),
+            userId: userId,
+          },
+          android: {
+            priority: "high",
+            notification: { channelId: "emergency_channel", sound: "alarm" },
+          },
+          apns: {
+            payload: { aps: { sound: "alarm.caf", badge: 1 } },
+          },
+        });
+        console.log(`FCM bildirimi gönderildi: ${contact.name}`);
+      } catch (err) {
+        console.error(`FCM hatası (${contact.name}):`, err.message);
+        errors.push({ type: "fcm", error: err.message });
+      }
+    }
+
+    // Twilio WhatsApp mesajı gönder
+    if (contact.channels && contact.channels.includes("whatsapp")) {
+      try {
+        await twilioClient.messages.create({
+          body: fullMessage,
+          from: process.env.TWILIO_WHATSAPP,
+          to: `whatsapp:${contact.phone}`,
+        });
+        console.log(`WhatsApp mesajı gönderildi: ${contact.name}`);
+      } catch (err) {
+        console.error(`WhatsApp hatası (${contact.name}):`, err.message);
+        errors.push({ type: "whatsapp", error: err.message });
+      }
+    }
+
+    return { contactId: contact.id, errors };
+  });
+
+  const notificationResults = await Promise.all(notificationPromises);
+
+  // ── 2. ADIM: 5 saniye bekle, ardından aramaları başlat ──
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+
+  // Arama kanalı seçili kişileri sırayla ara
+  const callResults = [];
+  const callContacts = contacts.filter(
+    (c) => c.channels && c.channels.includes("call")
+  );
+
+  for (const contact of callContacts) {
+    try {
+      const twiml = `
+        <Response>
+          <Say language="tr-TR" voice="alice">
+            Acil yardım çağrısı. ${settings.callerName} yardıma ihtiyaç duyuyor.
+            Konum bilgisi WhatsApp mesajı olarak gönderildi.
+            Lütfen hemen geri arayın veya konuma gidin.
+          </Say>
+          <Pause length="2"/>
+          <Say language="tr-TR" voice="alice">
+            Bu mesaj tekrar edilmektedir. Acil yardım çağrısı.
+            ${settings.callerName} yardıma ihtiyaç duyuyor.
+          </Say>
+        </Response>
+      `.trim();
+
+      await twilioClient.calls.create({
+        twiml: twiml,
+        from: process.env.TWILIO_PHONE,
+        to: contact.phone,
+      });
+
+      console.log(`Arama başlatıldı: ${contact.name} (${contact.phone})`);
+      callResults.push({ contactId: contact.id, success: true });
+
+      // Bir sonraki kişiyi aramadan önce 10 saniye bekle
+      if (callContacts.indexOf(contact) < callContacts.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 10000));
+      }
+    } catch (err) {
+      console.error(`Arama hatası (${contact.name}):`, err.message);
+      callResults.push({ contactId: contact.id, success: false, error: err.message });
+    }
+  }
+
+  // ── 3. ADIM: Tetikleme geçmişini Firestore'a kaydet ──
+  await userRef.collection("triggerLogs").add({
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    latitude,
+    longitude,
+    mapsLink,
+    notificationResults,
+    callResults,
+    contactCount: contacts.length,
+  });
+
+  console.log(`triggerEmergency tamamlandı. ${contacts.length} kişi bilgilendirildi.`);
+
+  return {
+    success: true,
+    timestamp: Date.now(),
+    contactCount: contacts.length,
+    notificationResults,
+    callResults,
+  };
+});
+
+// ─────────────────────────────────────────────────────────────
+// Twilio arama durumu webhook'u (opsiyonel — loglama için)
+// ─────────────────────────────────────────────────────────────
+exports.callStatusCallback = onRequest((req, res) => {
+  const { CallSid, CallStatus, To } = req.body;
+  console.log(`Arama durumu — SID: ${CallSid}, Durum: ${CallStatus}, Hedef: ${To}`);
+  res.status(200).send("OK");
+});
