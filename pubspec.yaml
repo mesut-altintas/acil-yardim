@@ -40,6 +40,9 @@ dependencies:
   # Google ile giriş
   google_sign_in: ^6.2.1
 
+  # Apple ile giriş
+  sign_in_with_apple: ^6.1.4
+
   # Sürükle-bırak liste sıralaması
   flutter_reorderable_list: ^1.0.0
 

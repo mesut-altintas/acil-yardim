@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 
@@ -191,6 +192,50 @@ class _LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<_LoginScreen> {
   bool _isLoading = false;
   String? _errorMessage;
+  bool _showEmailForm = false;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isRegister = false;
+
+  // Apple ile giriş yap
+  Future<void> _signInWithApple() async {
+    setState(() { _isLoading = true; _errorMessage = null; });
+    try {
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [AppleIDAuthorizationScopes.email, AppleIDAuthorizationScopes.fullName],
+      );
+      final oauthCredential = OAuthProvider('apple.com').credential(
+        idToken: appleCredential.identityToken,
+        accessToken: appleCredential.authorizationCode,
+      );
+      await FirebaseAuth.instance.signInWithCredential(oauthCredential);
+    } catch (e) {
+      if (mounted) setState(() { _errorMessage = 'Apple ile giriş başarısız.'; _isLoading = false; });
+    }
+  }
+
+  // Email ile giriş/kayıt
+  Future<void> _signInWithEmail() async {
+    setState(() { _isLoading = true; _errorMessage = null; });
+    try {
+      if (_isRegister) {
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+      } else {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) setState(() {
+        _errorMessage = e.message ?? 'Giriş başarısız.';
+        _isLoading = false;
+      });
+    }
+  }
 
   // Google ile giriş yap
   Future<void> _signInWithGoogle() async {
@@ -304,32 +349,87 @@ class _LoginScreenState extends State<_LoginScreen> {
                 const SizedBox(height: 16),
               ],
 
-              // Google ile giriş butonu
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: OutlinedButton.icon(
-                  onPressed: _isLoading ? null : _signInWithGoogle,
-                  icon: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.login),
-                  label: Text(
-                    _isLoading ? 'Giriş yapılıyor...' : 'Google ile Giriş Yap',
-                    style: const TextStyle(fontSize: 16),
+              if (_showEmailForm) ...[
+                TextField(
+                  controller: _emailController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'E-posta',
+                    hintStyle: const TextStyle(color: Colors.white38),
+                    filled: true,
+                    fillColor: Colors.white10,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                   ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white30),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  keyboardType: TextInputType.emailAddress,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _passwordController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Şifre',
+                    hintStyle: const TextStyle(color: Colors.white38),
+                    filled: true,
+                    fillColor: Colors.white10,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  ),
+                  obscureText: true,
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _signInWithEmail,
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE63946), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                    child: Text(_isRegister ? 'Hesap Oluştur' : 'Giriş Yap', style: const TextStyle(fontSize: 16, color: Colors.white)),
                   ),
                 ),
-              ),
+                TextButton(
+                  onPressed: () => setState(() => _isRegister = !_isRegister),
+                  child: Text(_isRegister ? 'Zaten hesabım var' : 'Yeni hesap oluştur', style: const TextStyle(color: Colors.white54)),
+                ),
+                TextButton(
+                  onPressed: () => setState(() => _showEmailForm = false),
+                  child: const Text('Geri', style: TextStyle(color: Colors.white38)),
+                ),
+              ] else ...[
+                // Google butonu
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: OutlinedButton.icon(
+                    onPressed: _isLoading ? null : _signInWithGoogle,
+                    icon: _isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.login),
+                    label: Text(_isLoading ? 'Giriş yapılıyor...' : 'Google ile Giriş Yap', style: const TextStyle(fontSize: 16)),
+                    style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white30), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Apple butonu
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: OutlinedButton.icon(
+                    onPressed: _isLoading ? null : _signInWithApple,
+                    icon: const Icon(Icons.apple),
+                    label: const Text('Apple ile Giriş Yap', style: TextStyle(fontSize: 16)),
+                    style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white30), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Email butonu
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: OutlinedButton.icon(
+                    onPressed: _isLoading ? null : () => setState(() => _showEmailForm = true),
+                    icon: const Icon(Icons.email_outlined),
+                    label: const Text('E-posta ile Giriş Yap', style: TextStyle(fontSize: 16)),
+                    style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white30), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 32),
 
