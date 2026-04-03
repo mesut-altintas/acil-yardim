@@ -50,8 +50,8 @@ jobs:
             -authenticationKeyID ${{ secrets.APPLE_API_KEY_ID }} \
             -authenticationKeyIssuerID ${{ secrets.APPLE_API_KEY_ISSUER_ID }} \
             CODE_SIGN_STYLE=Automatic \
-            CODE_SIGN_IDENTITY="iPhone Distribution" \
-            DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }}
+            DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
+            ONLY_ACTIVE_ARCH=NO
 
       - name: Export IPA (Ad Hoc)
         run: |
