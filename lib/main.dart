@@ -63,24 +63,45 @@ Future<void> _showLocalNotification(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase'i başlat
-  await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    await _initLocalNotifications();
 
-  // Arka plan FCM mesaj handler'ını kaydet
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+      ),
+    );
 
-  // Yerel bildirimleri başlat
-  await _initLocalNotifications();
-
-  // Durum çubuğunu şeffaf yap (Android)
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-    ),
-  );
-
-  runApp(const AcilYardimApp());
+    runApp(const AcilYardimApp());
+  } catch (e, stack) {
+    runApp(MaterialApp(
+      home: Scaffold(
+        backgroundColor: Colors.red[50],
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 60),
+              const Icon(Icons.error, color: Colors.red, size: 48),
+              const SizedBox(height: 16),
+              const Text('Başlatma Hatası',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(e.toString(),
+                  style: const TextStyle(fontSize: 14, color: Colors.red)),
+              const SizedBox(height: 16),
+              Text(stack.toString(),
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            ],
+          ),
+        ),
+      ),
+    ));
+  }
 }
 
 Future<void> _initLocalNotifications() async {
