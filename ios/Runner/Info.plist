@@ -42,6 +42,10 @@
         <false/>
     </dict>
 
+    <!-- Google Sign-In Client ID -->
+    <key>GIDClientID</key>
+    <string>712176340011-fl2kisdcpr7skjmk07nskhd3i1kq1dbs.apps.googleusercontent.com</string>
+
     <!-- Google Sign-In URL scheme (REVERSED_CLIENT_ID) -->
     <key>CFBundleURLTypes</key>
     <array>
