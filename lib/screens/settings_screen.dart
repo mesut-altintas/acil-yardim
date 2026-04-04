@@ -197,6 +197,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (name.isEmpty || phone.isEmpty) return;
 
+    // Boşluk, parantez, tire temizle
+    phone = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+
     if (!phone.startsWith('+')) {
       if (phone.startsWith('0')) {
         phone = '+9$phone';

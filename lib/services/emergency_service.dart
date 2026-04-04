@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'firestore_service.dart';
@@ -64,7 +65,7 @@ class EmergencyService {
       }
 
       if (!isTest) {
-        // Gerçek tetikleme — Cloud Function çağır
+        // Gerçek tetikleme — Cloud Function çağır (WhatsApp + FCM)
         final callable = FirebaseFunctions.instance
             .httpsCallable('triggerEmergency');
 
@@ -76,6 +77,9 @@ class EmergencyService {
 
         print('[EmergencyService] Cloud Function yanıtı: ${result.data}');
         _setStatus(TriggerStatus.success);
+
+        // Arama kanalı seçili kişileri cihazdan ara
+        await _callContactsFromDevice(userId);
       } else {
         // Test modu — gerçek bildirim gönderme, sadece simüle et
         await Future.delayed(const Duration(seconds: 2));
@@ -131,6 +135,29 @@ class EmergencyService {
       desiredAccuracy: LocationAccuracy.high,
       timeLimit: const Duration(seconds: 10),
     );
+  }
+
+  // ─────────────────────────────────────────────
+  // Kişileri cihazdan ara (kendi telefonunla)
+  // ─────────────────────────────────────────────
+  Future<void> _callContactsFromDevice(String userId) async {
+    try {
+      final contacts = await _firestoreService.getContacts();
+      final callContacts = contacts.where(
+        (c) => c.channels.any((ch) => ch.name == 'call'),
+      ).toList();
+
+      for (final contact in callContacts) {
+        print('[EmergencyService] Arama başlatılıyor: ${contact.name} (${contact.phone})');
+        await FlutterPhoneDirectCaller.callNumber(contact.phone);
+        // Bir sonraki kişiyi aramadan önce kısa bekle
+        if (callContacts.indexOf(contact) < callContacts.length - 1) {
+          await Future.delayed(const Duration(seconds: 15));
+        }
+      }
+    } catch (e) {
+      print('[EmergencyService] Cihaz araması hatası: $e');
+    }
   }
 
   // ─────────────────────────────────────────────

@@ -28,6 +28,9 @@ dependencies:
   # URL açma (yedek arama için)
   url_launcher: ^6.3.1
 
+  # Doğrudan telefon araması (kendi cihazdan)
+  flutter_phone_direct_caller: ^2.1.1
+
   # İzin yönetimi
   permission_handler: ^11.3.1
 

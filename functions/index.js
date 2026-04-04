@@ -112,52 +112,9 @@ exports.triggerEmergency = onCall(async (request) => {
 
   const notificationResults = await Promise.all(notificationPromises);
 
-  // ── 2. ADIM: 5 saniye bekle, ardından aramaları başlat ──
-  await new Promise((resolve) => setTimeout(resolve, 5000));
-
-  // Arama kanalı seçili kişileri sırayla ara
+  // ── 2. ADIM: Tetikleme geçmişini Firestore'a kaydet ──
+  // (Aramalar artık Flutter tarafında cihazdan yapılıyor)
   const callResults = [];
-  const callContacts = contacts.filter(
-    (c) => c.channels && c.channels.includes("call")
-  );
-
-  for (const contact of callContacts) {
-    try {
-      const twiml = `
-        <Response>
-          <Say language="tr-TR" voice="alice">
-            Acil yardım çağrısı. ${settings.callerName} yardıma ihtiyaç duyuyor.
-            Konum bilgisi WhatsApp mesajı olarak gönderildi.
-            Lütfen hemen geri arayın veya konuma gidin.
-          </Say>
-          <Pause length="2"/>
-          <Say language="tr-TR" voice="alice">
-            Bu mesaj tekrar edilmektedir. Acil yardım çağrısı.
-            ${settings.callerName} yardıma ihtiyaç duyuyor.
-          </Say>
-        </Response>
-      `.trim();
-
-      await twilioClient.calls.create({
-        twiml: twiml,
-        from: process.env.TWILIO_PHONE,
-        to: contact.phone,
-      });
-
-      console.log(`Arama başlatıldı: ${contact.name} (${contact.phone})`);
-      callResults.push({ contactId: contact.id, success: true });
-
-      // Bir sonraki kişiyi aramadan önce 10 saniye bekle
-      if (callContacts.indexOf(contact) < callContacts.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 10000));
-      }
-    } catch (err) {
-      console.error(`Arama hatası (${contact.name}):`, err.message);
-      callResults.push({ contactId: contact.id, success: false, error: err.message });
-    }
-  }
-
-  // ── 3. ADIM: Tetikleme geçmişini Firestore'a kaydet ──
   await userRef.collection("triggerLogs").add({
     timestamp: admin.firestore.FieldValue.serverTimestamp(),
     latitude,
