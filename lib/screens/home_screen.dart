@@ -135,6 +135,66 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   // ─────────────────────────────────────────────
+  // Yardım menüsü
+  // ─────────────────────────────────────────────
+  void _showHelp() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A2E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Nasıl Kullanılır?',
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            _helpItem(Icons.radio_button_checked, 'AB Shutter 3',
+                'Bluetooth düğmeye basınca acil bildirim tetiklenir. Uygulamanın açık ve AKTİF olması gerekir.'),
+            _helpItem(Icons.shield, 'AKTİF/PASİF',
+                'Ana ekrandaki kırmızı butona basarak sistemi açıp kapatabilirsiniz.'),
+            _helpItem(Icons.contacts, 'Acil Kişi Ekle',
+                'Ayarlar → Acil Kişiler → + Ekle. Rehberden seç veya manuel gir.'),
+            _helpItem(Icons.whatsapp, 'WhatsApp Aktivasyonu',
+                'Ayarlar sayfasındaki talimatı takip edin. Twilio sandbox numarasına "join [kelime]" gönderin.'),
+            _helpItem(Icons.location_on, 'Konum Bildirimi',
+                'Tetiklenince GPS konumunuz Google Maps linki olarak tüm kişilere gönderilir.'),
+            _helpItem(Icons.call, 'Sesli Arama',
+                'Bildirimden 5 saniye sonra acil kişiler otomatik olarak sırayla aranır.'),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _helpItem(IconData icon, String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: const Color(0xFFE63946), size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                Text(desc, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
   // Test modu — gerçek bildirim göndermez
   // ─────────────────────────────────────────────
   Future<void> _runTest() async {
@@ -227,26 +287,31 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
         actions: [
-          // Bluetooth bağlantı durumu göstergesi
+          // AB Shutter durumu göstergesi
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: Row(
               children: [
                 Icon(
-                  Icons.bluetooth,
-                  color: _isBluetoothConnected ? Colors.green : Colors.red,
+                  Icons.radio_button_checked,
+                  color: _isActive ? Colors.green : Colors.grey,
                   size: 20,
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  _isBluetoothConnected ? 'Bağlı' : 'Bağlı Değil',
+                  _isActive ? 'Hazır' : 'Pasif',
                   style: TextStyle(
-                    color: _isBluetoothConnected ? Colors.green : Colors.red,
+                    color: _isActive ? Colors.green : Colors.grey,
                     fontSize: 12,
                   ),
                 ),
               ],
             ),
+          ),
+          // Yardım butonu
+          IconButton(
+            icon: const Icon(Icons.help_outline, color: Colors.white70),
+            onPressed: _showHelp,
           ),
           // Ayarlar butonu
           IconButton(
