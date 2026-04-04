@@ -1,76 +1,80 @@
 // Bluetooth HID tetikleme servisi
 // AB Shutter 3, telefona Bluetooth klavye olarak görünür.
-// Flutter'ın yerleşik HardwareKeyboard API'si ile Volume Up tuşu yakalanır —
-// harici paket gerektirmez.
+// Android: HardwareKeyboard API
+// iOS: AVAudioSession volume observer (native EventChannel)
 
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'emergency_service.dart';
 
 class BluetoothTriggerService {
-  // Singleton pattern — tek örnek kullan
   static final BluetoothTriggerService _instance =
       BluetoothTriggerService._internal();
   factory BluetoothTriggerService() => _instance;
   BluetoothTriggerService._internal();
 
-  // Yanlışlıkla tetiklenmeyi önlemek için debounce süresi (ms)
-  static const int _debounceDurationMs = 3000;
+  static const EventChannel _volumeChannel =
+      EventChannel('com.acilyardim/volume_button');
 
-  // Son tetikleme zamanı (debounce için)
+  static const int _debounceDurationMs = 3000;
   DateTime? _lastTriggerTime;
 
-  // Servisi dinliyor mu?
   bool _isListening = false;
   bool get isListening => _isListening;
 
-  // Son klavye eventi zamanı — bağlantı tespiti için
-  DateTime? _lastEventTime;
+  StreamSubscription? _volumeSubscription;
 
-  // Bağlantı durumu: son 30 saniyede event geldiyse bağlı say
-  bool get isConnected {
-    if (_lastEventTime == null) return false;
-    return DateTime.now().difference(_lastEventTime!).inSeconds < 30;
-  }
-
-  // Bağlantı durumu akışı
   final StreamController<bool> _connectionController =
       StreamController<bool>.broadcast();
   Stream<bool> get connectionStream => _connectionController.stream;
 
-  // ─────────────────────────────────────────────
-  // Servisi başlat — klavye eventlerini dinle
-  // ─────────────────────────────────────────────
   Future<void> start() async {
     if (_isListening) return;
 
-    // Flutter'ın HardwareKeyboard handler'ını kaydet
-    // AB Shutter 3'ün gönderdiği Volume Up = LogicalKeyboardKey.audioVolumeUp
-    HardwareKeyboard.instance.addHandler(_onKeyEvent);
+    if (Platform.isIOS) {
+      // iOS: native volume button dinle
+      _volumeSubscription = _volumeChannel.receiveBroadcastStream().listen((event) {
+        if (event == 'volume_up') {
+          _onVolumeUp();
+        }
+      });
+    } else {
+      // Android: HardwareKeyboard
+      HardwareKeyboard.instance.addHandler(_onKeyEvent);
+    }
 
     _isListening = true;
-    print('[BluetoothTriggerService] Dinleme başladı (HardwareKeyboard)');
+    print('[BluetoothTriggerService] Dinleme başladı (${Platform.isIOS ? "iOS native" : "Android HardwareKeyboard"})');
   }
 
-  // ─────────────────────────────────────────────
-  // Servisi durdur
-  // ─────────────────────────────────────────────
   Future<void> stop() async {
-    HardwareKeyboard.instance.removeHandler(_onKeyEvent);
+    if (Platform.isIOS) {
+      await _volumeSubscription?.cancel();
+      _volumeSubscription = null;
+    } else {
+      HardwareKeyboard.instance.removeHandler(_onKeyEvent);
+    }
     _isListening = false;
-    print('[BluetoothTriggerService] Dinleme durduruldu');
   }
 
-  // ─────────────────────────────────────────────
-  // Klavye eventi geldiğinde çağrılır
-  // ─────────────────────────────────────────────
+  void _onVolumeUp() {
+    final now = DateTime.now();
+    _connectionController.add(true);
+
+    if (_lastTriggerTime != null) {
+      final elapsed = now.difference(_lastTriggerTime!).inMilliseconds;
+      if (elapsed < _debounceDurationMs) return;
+    }
+
+    _lastTriggerTime = now;
+    print('[BluetoothTriggerService] AB Shutter tetiklendi (iOS)');
+    EmergencyService().trigger();
+  }
+
   bool _onKeyEvent(KeyEvent event) {
-    // Sadece tuşa basılma anını yakala (basılı tutma veya bırakma değil)
     if (event is! KeyDownEvent) return false;
 
-    // AB Shutter 3 → Volume Up tuşu
-    // Fiziksel anahtar: PhysicalKeyboardKey.audioVolumeUp
-    // Mantıksal anahtar: LogicalKeyboardKey.audioVolumeUp
     final isVolumeUp =
         event.logicalKey == LogicalKeyboardKey.audioVolumeUp ||
         event.physicalKey == PhysicalKeyboardKey.audioVolumeUp;
@@ -78,32 +82,19 @@ class BluetoothTriggerService {
     if (!isVolumeUp) return false;
 
     final now = DateTime.now();
-    _lastEventTime = now;
-    _connectionController.add(true); // Bağlı sinyali yayınla
+    _connectionController.add(true);
 
-    print('[BluetoothTriggerService] Volume Up eventi alındı: $now');
-
-    // ── Debounce kontrolü ──
     if (_lastTriggerTime != null) {
       final elapsed = now.difference(_lastTriggerTime!).inMilliseconds;
-      if (elapsed < _debounceDurationMs) {
-        print('[BluetoothTriggerService] Debounce: $elapsed ms, yoksayıldı');
-        return true; // Olayı tüket (ses seviyesi değişmesin)
-      }
+      if (elapsed < _debounceDurationMs) return true;
     }
 
     _lastTriggerTime = now;
-    print('[BluetoothTriggerService] Acil yardım tetikleniyor...');
-
-    // Acil yardım servisini çağır
+    print('[BluetoothTriggerService] AB Shutter tetiklendi (Android)');
     EmergencyService().trigger();
-
-    return true; // true dönerek olayın daha fazla işlenmesini engelle
+    return true;
   }
 
-  // ─────────────────────────────────────────────
-  // Kaynakları serbest bırak
-  // ─────────────────────────────────────────────
   void dispose() {
     stop();
     _connectionController.close();
