@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/bluetooth_trigger_service.dart';
 import '../services/emergency_service.dart';
@@ -17,7 +18,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final BluetoothTriggerService _btService = BluetoothTriggerService();
   final EmergencyService _emergencyService = EmergencyService();
   final FirestoreService _firestoreService = FirestoreService();
@@ -47,6 +48,10 @@ class _HomeScreenState extends State<HomeScreen>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
+  // Basılı tut animasyonu
+  late AnimationController _holdController;
+  bool _isHolding = false;
+
   @override
   void initState() {
     super.initState();
@@ -65,8 +70,38 @@ class _HomeScreenState extends State<HomeScreen>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    // Varsayılan olarak animasyonu durdur
     _pulseController.stop();
+
+    // Basılı tut — 3 saniyede dolacak
+    _holdController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    );
+
+    _holdController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _onHoldCompleted();
+      }
+    });
+  }
+
+  void _startHold() {
+    if (!_isActive || _triggerStatus != TriggerStatus.idle) return;
+    setState(() => _isHolding = true);
+    HapticFeedback.mediumImpact();
+    _holdController.forward(from: 0);
+  }
+
+  void _cancelHold() {
+    if (!_isHolding) return;
+    setState(() => _isHolding = false);
+    _holdController.reverse();
+  }
+
+  void _onHoldCompleted() {
+    setState(() => _isHolding = false);
+    HapticFeedback.heavyImpact();
+    _emergencyService.trigger();
   }
 
   void _initSubscriptions() {
@@ -287,25 +322,28 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
         actions: [
-          // AB Shutter durumu göstergesi
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.radio_button_checked,
-                  color: _isActive ? Colors.green : Colors.grey,
-                  size: 20,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  _isActive ? 'Hazır' : 'Pasif',
-                  style: TextStyle(
+          // AKTİF/PASİF toggle
+          GestureDetector(
+            onTap: _toggleActive,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    _isActive ? Icons.power_settings_new : Icons.power_off,
                     color: _isActive ? Colors.green : Colors.grey,
-                    fontSize: 12,
+                    size: 20,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 4),
+                  Text(
+                    _isActive ? 'Açık' : 'Kapalı',
+                    style: TextStyle(
+                      color: _isActive ? Colors.green : Colors.grey,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           // Yardım butonu
@@ -328,61 +366,96 @@ class _HomeScreenState extends State<HomeScreen>
           children: [
             const SizedBox(height: 24),
 
-            // ── Büyük AKTİF/PASİF Toggle ──
+            // ── Büyük ACİL Butonu (3 sn basılı tut) ──
             GestureDetector(
-              onTap: _toggleActive,
+              onLongPressStart: (_) => _startHold(),
+              onLongPressEnd: (_) => _cancelHold(),
+              onLongPressCancel: _cancelHold,
               child: AnimatedBuilder(
-                animation: _pulseAnimation,
+                animation: Listenable.merge([_pulseAnimation, _holdController]),
                 builder: (context, child) => Transform.scale(
                   scale: _triggerStatus != TriggerStatus.idle
                       ? _pulseAnimation.value
                       : 1.0,
-                  child: child,
-                ),
-                child: Container(
-                  width: 200,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _isActive
-                        ? const Color(0xFFE63946)
-                        : Colors.grey[700],
-                    boxShadow: _isActive
-                        ? [
-                            BoxShadow(
-                              color: const Color(0xFFE63946).withOpacity(0.5),
-                              blurRadius: 30,
-                              spreadRadius: 10,
-                            )
-                          ]
-                        : [],
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        _isActive ? Icons.shield : Icons.shield_outlined,
-                        color: Colors.white,
-                        size: 60,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _isActive ? 'AKTİF' : 'PASİF',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 4,
+                  child: SizedBox(
+                    width: 220,
+                    height: 220,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Dolum halkası
+                        SizedBox(
+                          width: 220,
+                          height: 220,
+                          child: CircularProgressIndicator(
+                            value: _holdController.value,
+                            strokeWidth: 8,
+                            backgroundColor: Colors.white12,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              _isHolding
+                                  ? Colors.white
+                                  : Colors.transparent,
+                            ),
+                          ),
                         ),
-                      ),
-                      Text(
-                        _isActive ? 'Koruma açık' : 'Koruma kapalı',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
-                          fontSize: 12,
+                        // Ana daire
+                        Container(
+                          width: 200,
+                          height: 200,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _isActive
+                                ? const Color(0xFFE63946)
+                                : Colors.grey[700],
+                            boxShadow: _isActive
+                                ? [
+                                    BoxShadow(
+                                      color: (_isHolding
+                                              ? Colors.white
+                                              : const Color(0xFFE63946))
+                                          .withOpacity(0.5),
+                                      blurRadius: _isHolding ? 50 : 30,
+                                      spreadRadius: _isHolding ? 15 : 10,
+                                    )
+                                  ]
+                                : [],
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _isActive
+                                    ? Icons.shield
+                                    : Icons.shield_outlined,
+                                color: Colors.white,
+                                size: 60,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _isActive ? 'ACİL' : 'PASİF',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 4,
+                                ),
+                              ),
+                              Text(
+                                _isActive
+                                    ? (_isHolding
+                                        ? 'Bırakma...'
+                                        : '3 sn basılı tut')
+                                    : 'Koruma kapalı',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.8),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -548,6 +621,7 @@ class _HomeScreenState extends State<HomeScreen>
     _btConnectionSubscription?.cancel();
     _triggerStatusSubscription?.cancel();
     _pulseController.dispose();
+    _holdController.dispose();
     super.dispose();
   }
 }
