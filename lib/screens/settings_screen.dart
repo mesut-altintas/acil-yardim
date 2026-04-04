@@ -81,14 +81,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // ─────────────────────────────────────────────
-  // Rehberden kişi ekle
+  // Kişi ekleme seçeneği sun
   // ─────────────────────────────────────────────
   Future<void> _addContact() async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Kişi Ekle'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.contacts),
+              title: const Text('Rehberden Seç'),
+              onTap: () => Navigator.pop(ctx, 'contacts'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('Manuel Gir'),
+              onTap: () => Navigator.pop(ctx, 'manual'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (choice == 'contacts') {
+      await _addFromContacts();
+    } else if (choice == 'manual') {
+      await _addManually();
+    }
+  }
+
+  Future<void> _addFromContacts() async {
     try {
       final phoneContact = await _contactService.pickContact();
       if (phoneContact == null) return;
 
-      // Kanal seçim dialogu göster
       final selectedChannels = await showDialog<List<ContactChannel>>(
         context: context,
         builder: (ctx) => _ChannelPickerDialog(contactName: phoneContact.displayName),
@@ -114,6 +143,96 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Kişi eklenemedi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _addManually() async {
+    final nameController = TextEditingController();
+    final phoneController = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Manuel Kişi Ekle'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Ad Soyad'),
+              textCapitalization: TextCapitalization.words,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: phoneController,
+              decoration: const InputDecoration(
+                labelText: 'Telefon (+905XXXXXXXXX)',
+                hintText: '+905332769997',
+              ),
+              keyboardType: TextInputType.phone,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('İptal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Devam'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final name = nameController.text.trim();
+    String phone = phoneController.text.trim();
+
+    if (name.isEmpty || phone.isEmpty) return;
+
+    if (!phone.startsWith('+')) {
+      if (phone.startsWith('0')) {
+        phone = '+9$phone';
+      } else {
+        phone = '+90$phone';
+      }
+    }
+
+    final selectedChannels = await showDialog<List<ContactChannel>>(
+      context: context,
+      builder: (ctx) => _ChannelPickerDialog(contactName: name),
+    );
+
+    if (selectedChannels == null || selectedChannels.isEmpty) return;
+
+    try {
+      await _firestoreService.addContact(EmergencyContact(
+        id: '',
+        name: name,
+        phone: phone,
+        channels: selectedChannels,
+      ));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$name eklendi'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Hata: $e'),
             backgroundColor: Colors.red,
           ),
         );
