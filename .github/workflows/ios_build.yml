@@ -29,6 +29,49 @@ jobs:
           mkdir -p ~/.private_keys
           echo "${{ secrets.APPLE_API_PRIVATE_KEY }}" > ~/.private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
 
+      - name: Revoke old Development certificates
+        run: |
+          pip install pyjwt cryptography -q
+          python3 << 'PYEOF'
+          import jwt, time, json, urllib.request, sys
+
+          key_id   = "${{ secrets.APPLE_API_KEY_ID }}"
+          issuer   = "${{ secrets.APPLE_API_KEY_ISSUER_ID }}"
+          key_path = f"/Users/runner/.private_keys/AuthKey_{key_id}.p8"
+
+          key = open(key_path).read()
+          payload = {"iss": issuer, "iat": int(time.time()), "exp": int(time.time()) + 1200, "aud": "appstoreconnect-v1"}
+          token = jwt.encode(payload, key, algorithm="ES256", headers={"kid": key_id})
+
+          headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+          # Development sertifikalarını listele
+          req = urllib.request.Request(
+              "https://api.appstoreconnect.apple.com/v1/certificates?filter[certificateType]=IOS_DEVELOPMENT&limit=20",
+              headers=headers
+          )
+          data = json.loads(urllib.request.urlopen(req).read())
+          certs = data.get("data", [])
+          print(f"Development sertifika sayısı: {len(certs)}")
+
+          if len(certs) < 8:
+              print("Limit dolmamış, silme gerekmiyor")
+              sys.exit(0)
+
+          # Hepsini sil — build yeni bir tane oluşturacak
+          for cert in certs:
+              cert_id = cert["id"]
+              del_req = urllib.request.Request(
+                  f"https://api.appstoreconnect.apple.com/v1/certificates/{cert_id}",
+                  method="DELETE", headers=headers
+              )
+              try:
+                  urllib.request.urlopen(del_req)
+                  print(f"Silindi: {cert_id}")
+              except Exception as e:
+                  print(f"Silinemedi {cert_id}: {e}")
+          PYEOF
+
       - name: Install CocoaPods
         run: |
           cd ios
