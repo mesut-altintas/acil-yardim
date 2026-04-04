@@ -48,6 +48,14 @@ class EmergencyService {
       return;
     }
 
+    // Kişi listesi kontrolü
+    final contacts = await _firestoreService.getContacts();
+    if (contacts.isEmpty) {
+      _setStatus(TriggerStatus.error);
+      print('[EmergencyService] Acil kişi eklenmemiş, tetikleme iptal edildi');
+      return;
+    }
+
     _isTriggering = true;
     _setStatus(TriggerStatus.gettingGps);
 
@@ -133,7 +141,7 @@ class EmergencyService {
     // Konumu al — yüksek doğruluk, max 10sn timeout
     return await Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.high,
-      timeLimit: const Duration(seconds: 10),
+      timeLimit: const Duration(seconds: 6),
     );
   }
 

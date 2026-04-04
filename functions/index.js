@@ -110,7 +110,8 @@ exports.triggerEmergency = onCall(async (request) => {
     return { contactId: contact.id, errors };
   });
 
-  const notificationResults = await Promise.all(notificationPromises);
+  // allSettled: bir kişide hata olsa diğerleri etkilenmez
+  const notificationResults = await Promise.allSettled(notificationPromises);
 
   // ── 2. ADIM: Tetikleme geçmişini Firestore'a kaydet ──
   // (Aramalar artık Flutter tarafında cihazdan yapılıyor)
