@@ -4,7 +4,6 @@
 import 'dart:async';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'firestore_service.dart';
@@ -157,7 +156,8 @@ class EmergencyService {
 
       for (final contact in callContacts) {
         print('[EmergencyService] Arama başlatılıyor: ${contact.name} (${contact.phone})');
-        await FlutterPhoneDirectCaller.callNumber(contact.phone);
+        final telUri = Uri.parse('tel:${contact.phone}');
+        if (await canLaunchUrl(telUri)) await launchUrl(telUri);
         // Bir sonraki kişiyi aramadan önce kısa bekle
         if (callContacts.indexOf(contact) < callContacts.length - 1) {
           await Future.delayed(const Duration(seconds: 15));
