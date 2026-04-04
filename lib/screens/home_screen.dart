@@ -269,6 +269,8 @@ class _HomeScreenState extends State<HomeScreen>
       case TriggerStatus.calling:
         return 'Acil kişiler bilgilendiriliyor...';
       case TriggerStatus.success:
+        final result = _emergencyService.lastResult;
+        if (result != null) return result.summary;
         return '✓ Bildirimler gönderildi!';
       case TriggerStatus.fallback:
         return 'Yedek arama açılıyor...';

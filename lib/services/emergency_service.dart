@@ -37,6 +37,9 @@ class EmergencyService {
   TriggerStatus _currentStatus = TriggerStatus.idle;
   TriggerStatus get currentStatus => _currentStatus;
 
+  TriggerResult? _lastResult;
+  TriggerResult? get lastResult => _lastResult;
+
   // ─────────────────────────────────────────────
   // Ana tetikleme metodu
   // ─────────────────────────────────────────────
@@ -82,7 +85,34 @@ class EmergencyService {
           'longitude': position.longitude,
         });
 
-        print('[EmergencyService] Cloud Function yanıtı: ${result.data}');
+        final data = Map<String, dynamic>.from(result.data as Map);
+        final notifResults = data['notificationResults'] as List? ?? [];
+
+        // Kaç kişiye başarıyla gönderildi?
+        int successCount = 0;
+        final List<String> failedNames = [];
+
+        for (final r in notifResults) {
+          final item = r is Map ? r : {};
+          final errors = item['errors'] as List? ?? [];
+          if (errors.isEmpty) {
+            successCount++;
+          } else {
+            final contact = contacts.firstWhere(
+              (c) => c.id == item['contactId'],
+              orElse: () => contacts.first,
+            );
+            failedNames.add(contact.name);
+          }
+        }
+
+        _lastResult = TriggerResult(
+          successCount: successCount,
+          failedNames: failedNames,
+          contactCount: contacts.length,
+        );
+
+        print('[EmergencyService] Gönderim: $successCount/${contacts.length} başarılı');
         _setStatus(TriggerStatus.success);
 
         // Arama kanalı seçili kişileri cihazdan ara
@@ -208,6 +238,26 @@ class EmergencyService {
 
   void dispose() {
     _statusController.close();
+  }
+}
+
+/// Tetikleme sonuç özeti
+class TriggerResult {
+  final int successCount;
+  final List<String> failedNames;
+  final int contactCount;
+
+  TriggerResult({
+    required this.successCount,
+    required this.failedNames,
+    required this.contactCount,
+  });
+
+  bool get allSuccess => failedNames.isEmpty;
+  String get summary {
+    if (allSuccess) return '$successCount kişiye bildirim gönderildi ✓';
+    if (successCount == 0) return 'Hiçbir kişiye gönderilemedi ✗';
+    return '$successCount/$contactCount gönderildi. Başarısız: ${failedNames.join(", ")}';
   }
 }
 
