@@ -123,6 +123,10 @@
     <key>UIViewControllerBasedStatusBarAppearance</key>
     <false/>
 
+    <!-- Şifreleme beyanı — her build'de compliance sorusu sorulmasın -->
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+
     <!-- Minimum iOS versiyonu -->
     <key>MinimumOSVersion</key>
     <string>13.0</string>
