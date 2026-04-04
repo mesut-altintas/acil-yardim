@@ -159,7 +159,7 @@ class _HomeScreenState extends State<HomeScreen>
                 'Ana ekrandaki kırmızı butona basarak sistemi açıp kapatabilirsiniz.'),
             _helpItem(Icons.contacts, 'Acil Kişi Ekle',
                 'Ayarlar → Acil Kişiler → + Ekle. Rehberden seç veya manuel gir.'),
-            _helpItem(Icons.whatsapp, 'WhatsApp Aktivasyonu',
+            _helpItem(Icons.message, 'WhatsApp Aktivasyonu',
                 'Ayarlar sayfasındaki talimatı takip edin. Twilio sandbox numarasına "join [kelime]" gönderin.'),
             _helpItem(Icons.location_on, 'Konum Bildirimi',
                 'Tetiklenince GPS konumunuz Google Maps linki olarak tüm kişilere gönderilir.'),
