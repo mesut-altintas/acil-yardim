@@ -158,7 +158,7 @@ exports.sendSafeMessage = onCall(async (request) => {
 
   const settings = settingsDoc.exists ? settingsDoc.data() : {};
   const callerName = settings.callerName || "Kullanıcı";
-  const safeMessage = `✅ ${callerName} güvende. Endişelenmeyin.`;
+  const safeMessage = settings.safeMessage || `✅ ${callerName} güvende. Endişelenmeyin.`;
 
   const twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
   const contacts = contactsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));

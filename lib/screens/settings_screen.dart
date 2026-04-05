@@ -22,6 +22,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // Ayar form kontrolcüleri
   final TextEditingController _messageController = TextEditingController();
+  final TextEditingController _safeMessageController = TextEditingController();
   final TextEditingController _callerNameController = TextEditingController();
 
   // Acil kişiler listesi
@@ -39,6 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadSettings() async {
     final settings = await _firestoreService.getSettings();
     _messageController.text = settings['message'] ?? '';
+    _safeMessageController.text = settings['safeMessage'] ?? '';
     _callerNameController.text = settings['callerName'] ?? '';
   }
 
@@ -56,6 +58,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       await _firestoreService.updateSettings({
         'message': _messageController.text.trim(),
+        'safeMessage': _safeMessageController.text.trim(),
         'callerName': _callerNameController.text.trim(),
       });
       if (mounted) {
@@ -347,7 +350,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // ── Mesaj şablonu ──
+          // ── Acil mesaj şablonu ──
           _SectionHeader(title: 'Acil Mesaj', icon: Icons.message),
           const SizedBox(height: 8),
           _DarkTextField(
@@ -360,7 +363,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _DarkTextField(
             controller: _callerNameController,
             hint: 'Ad Soyad',
-            label: 'Adınız (aramalarda kullanılır)',
+            label: 'Adınız (mesajlarda kullanılır)',
+          ),
+
+          const SizedBox(height: 24),
+
+          // ── Güvendeyim mesaj şablonu ──
+          _SectionHeader(title: 'Güvendeyim Mesajı', icon: Icons.check_circle),
+          const SizedBox(height: 8),
+          _DarkTextField(
+            controller: _safeMessageController,
+            hint: 'Güvendeyim, endişelenmeyin.',
+            maxLines: 3,
+            label: 'Güvendeyim mesaj şablonu',
           ),
 
           const SizedBox(height: 24),
@@ -546,6 +561,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     _messageController.dispose();
+    _safeMessageController.dispose();
     _callerNameController.dispose();
     super.dispose();
   }
