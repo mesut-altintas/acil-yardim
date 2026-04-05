@@ -2,7 +2,6 @@
 // Telefon rehberinden kişi seçme ve Firestore'a kaydetme işlemleri
 
 import 'package:flutter_contacts/flutter_contacts.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../models/emergency_contact.dart';
 import 'firestore_service.dart';
@@ -19,25 +18,10 @@ class ContactService {
   // Telefon rehberinden kişi seç
   // ─────────────────────────────────────────────
 
-  /// Rehber izni iste ve kişi seçici aç
+  /// Sistem rehber seçicisini aç
+  /// openExternalPick() CNContactPickerViewController kullanır —
+  /// contacts permission gerektirmez, kullanıcı kendi seçer.
   Future<Contact?> pickContact() async {
-    // Kalıcı red kontrolü — Ayarlar'a yönlendir
-    final status = await Permission.contacts.status;
-    if (status.isPermanentlyDenied) {
-      throw Exception('SETTINGS_REQUIRED');
-    }
-
-    // flutter_contacts kendi izin mekanizmasıyla iste
-    final granted = await FlutterContacts.requestPermission();
-    if (!granted) {
-      final newStatus = await Permission.contacts.status;
-      if (newStatus.isPermanentlyDenied) {
-        throw Exception('SETTINGS_REQUIRED');
-      }
-      throw Exception('Rehber erişim izni reddedildi');
-    }
-
-    // Sistem rehber seçicisini aç
     final contact = await FlutterContacts.openExternalPick();
     return contact;
   }
