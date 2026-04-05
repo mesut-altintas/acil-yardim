@@ -26,7 +26,6 @@ class VolumeButtonHandler: NSObject, FlutterStreamHandler {
   private var volumeObserver: NSKeyValueObservation?
   private var eventSink: FlutterEventSink?
   private var lastVolume: Float = 0.5
-  private var lastTriggerTime: Date?
   private var volumeView: MPVolumeView?
   private var volumeSlider: UISlider?
 
@@ -60,22 +59,22 @@ class VolumeButtonHandler: NSObject, FlutterStreamHandler {
       guard let self = self else { return }
       let newVolume = sess.outputVolume
 
-      if newVolume > self.lastVolume {
-        let now = Date()
-        if let last = self.lastTriggerTime, now.timeIntervalSince(last) < 3.0 {
-          self.resetVolume()
-          self.lastVolume = 0.5
-          return
-        }
-        self.lastTriggerTime = now
+      if newVolume > self.lastVolume + 0.01 {
+        // Ses açma butonu basıldı — hold detection Flutter tarafında yapılır
         self.resetVolume()
         self.lastVolume = 0.5
         DispatchQueue.main.async {
           self.eventSink?("volume_up")
         }
-      } else {
-        self.lastVolume = newVolume
+      } else if newVolume < self.lastVolume - 0.01 {
+        // Ses kapatma butonu basıldı — hold detection Flutter tarafında yapılır
+        self.resetVolume()
+        self.lastVolume = 0.5
+        DispatchQueue.main.async {
+          self.eventSink?("volume_down")
+        }
       }
+      // else: resetVolume() tetiklediği 0.5'e dönüş → yoksay
     }
 
     return nil

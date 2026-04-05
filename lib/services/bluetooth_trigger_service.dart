@@ -2,11 +2,14 @@
 // AB Shutter 3, telefona Bluetooth klavye olarak görünür.
 // Android: HardwareKeyboard API
 // iOS: AVAudioSession volume observer (native EventChannel)
+//
+// Buton davranışı:
+//   Ses açma (volume up):   3 saniye basılı tut → ACİL tetikle
+//   Ses kapatma (volume down): 2 saniye basılı tut → GÜVENDEYİM tetikle
 
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/services.dart';
-import 'emergency_service.dart';
 
 class BluetoothTriggerService {
   static final BluetoothTriggerService _instance =
@@ -17,35 +20,50 @@ class BluetoothTriggerService {
   static const EventChannel _volumeChannel =
       EventChannel('com.acilyardim/volume_button');
 
-  static const int _debounceDurationMs = 3000;
-  DateTime? _lastTriggerTime;
+  // Hold eşikleri (ms)
+  static const int _emergencyHoldMs = 3000; // ses açma → ACİL
+  static const int _safeHoldMs = 2000;      // ses kapatma → GÜVENDEYİM
+  // Bu süre boyunca yeni event gelmezse bırakıldı sayılır
+  static const int _releaseTimeoutMs = 600;
+
+  // Hold durumu
+  DateTime? _upHoldStart;
+  DateTime? _downHoldStart;
+  Timer? _upReleaseTimer;
+  Timer? _downReleaseTimer;
 
   bool _isListening = false;
   bool get isListening => _isListening;
 
   StreamSubscription? _volumeSubscription;
 
+  // AB Shutter bağlantı durumu
   final StreamController<bool> _connectionController =
       StreamController<bool>.broadcast();
   Stream<bool> get connectionStream => _connectionController.stream;
+
+  // Tetikleme olayları: 'emergency' veya 'safe'
+  final StreamController<String> _triggerController =
+      StreamController<String>.broadcast();
+  Stream<String> get triggerStream => _triggerController.stream;
 
   Future<void> start() async {
     if (_isListening) return;
 
     if (Platform.isIOS) {
-      // iOS: native volume button dinle
-      _volumeSubscription = _volumeChannel.receiveBroadcastStream().listen((event) {
+      _volumeSubscription =
+          _volumeChannel.receiveBroadcastStream().listen((event) {
         if (event == 'volume_up') {
           _onVolumeUp();
+        } else if (event == 'volume_down') {
+          _onVolumeDown();
         }
       });
     } else {
-      // Android: HardwareKeyboard
       HardwareKeyboard.instance.addHandler(_onKeyEvent);
     }
 
     _isListening = true;
-    print('[BluetoothTriggerService] Dinleme başladı (${Platform.isIOS ? "iOS native" : "Android HardwareKeyboard"})');
   }
 
   Future<void> stop() async {
@@ -55,48 +73,92 @@ class BluetoothTriggerService {
     } else {
       HardwareKeyboard.instance.removeHandler(_onKeyEvent);
     }
+    _resetUpHold();
+    _resetDownHold();
     _isListening = false;
   }
 
+  // ── Ses açma: 3 saniye basılı tut → ACİL ──
   void _onVolumeUp() {
-    final now = DateTime.now();
     _connectionController.add(true);
+    _upReleaseTimer?.cancel();
+    _upReleaseTimer = null;
 
-    if (_lastTriggerTime != null) {
-      final elapsed = now.difference(_lastTriggerTime!).inMilliseconds;
-      if (elapsed < _debounceDurationMs) return;
+    final now = DateTime.now();
+    _upHoldStart ??= now;
+
+    final held = now.difference(_upHoldStart!).inMilliseconds;
+    if (held >= _emergencyHoldMs) {
+      _resetUpHold();
+      _triggerController.add('emergency');
+      return;
     }
 
-    _lastTriggerTime = now;
-    print('[BluetoothTriggerService] AB Shutter tetiklendi (iOS)');
-    EmergencyService().trigger();
+    // Sonraki event gelmezse bırakıldı say
+    _upReleaseTimer = Timer(Duration(milliseconds: _releaseTimeoutMs), () {
+      _upHoldStart = null;
+    });
   }
 
-  bool _onKeyEvent(KeyEvent event) {
-    if (event is! KeyDownEvent) return false;
+  // ── Ses kapatma: 2 saniye basılı tut → GÜVENDEYİM ──
+  void _onVolumeDown() {
+    _connectionController.add(true);
+    _downReleaseTimer?.cancel();
+    _downReleaseTimer = null;
 
+    final now = DateTime.now();
+    _downHoldStart ??= now;
+
+    final held = now.difference(_downHoldStart!).inMilliseconds;
+    if (held >= _safeHoldMs) {
+      _resetDownHold();
+      _triggerController.add('safe');
+      return;
+    }
+
+    _downReleaseTimer = Timer(Duration(milliseconds: _releaseTimeoutMs), () {
+      _downHoldStart = null;
+    });
+  }
+
+  void _resetUpHold() {
+    _upReleaseTimer?.cancel();
+    _upReleaseTimer = null;
+    _upHoldStart = null;
+  }
+
+  void _resetDownHold() {
+    _downReleaseTimer?.cancel();
+    _downReleaseTimer = null;
+    _downHoldStart = null;
+  }
+
+  // Android: HardwareKeyboard handler
+  bool _onKeyEvent(KeyEvent event) {
     final isVolumeUp =
         event.logicalKey == LogicalKeyboardKey.audioVolumeUp ||
         event.physicalKey == PhysicalKeyboardKey.audioVolumeUp;
+    final isVolumeDown =
+        event.logicalKey == LogicalKeyboardKey.audioVolumeDown ||
+        event.physicalKey == PhysicalKeyboardKey.audioVolumeDown;
 
-    if (!isVolumeUp) return false;
+    if (!isVolumeUp && !isVolumeDown) return false;
 
-    final now = DateTime.now();
-    _connectionController.add(true);
-
-    if (_lastTriggerTime != null) {
-      final elapsed = now.difference(_lastTriggerTime!).inMilliseconds;
-      if (elapsed < _debounceDurationMs) return true;
+    if (event is KeyDownEvent || event is KeyRepeatEvent) {
+      if (isVolumeUp) _onVolumeUp();
+      if (isVolumeDown) _onVolumeDown();
+    } else if (event is KeyUpEvent) {
+      // Android: gerçek bırakma eventi var, direkt sıfırla
+      if (isVolumeUp) _resetUpHold();
+      if (isVolumeDown) _resetDownHold();
     }
 
-    _lastTriggerTime = now;
-    print('[BluetoothTriggerService] AB Shutter tetiklendi (Android)');
-    EmergencyService().trigger();
     return true;
   }
 
   void dispose() {
     stop();
     _connectionController.close();
+    _triggerController.close();
   }
 }

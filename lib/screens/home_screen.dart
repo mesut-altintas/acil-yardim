@@ -27,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   StreamSubscription? _settingsSubscription;
   StreamSubscription? _triggerStatusSubscription;
+  StreamSubscription? _btTriggerSubscription;
 
   // ACİL basılı tut
   late AnimationController _emergencyHoldController;
@@ -85,6 +86,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         } else {
           _pulseController.stop();
           _pulseController.reset();
+        }
+      }
+    });
+
+    // AB Shutter hold tetiklemelerini dinle
+    _btTriggerSubscription = _btService.triggerStream.listen((event) {
+      if (!mounted) return;
+      if (event == 'emergency') {
+        if (_isActive && _triggerStatus == TriggerStatus.idle) {
+          HapticFeedback.heavyImpact();
+          _emergencyService.trigger();
+        }
+      } else if (event == 'safe') {
+        if (!_isSafeSending) {
+          _onSafeTriggered();
         }
       }
     });
@@ -431,7 +447,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             _helpItem(Icons.check_circle, 'GÜVENDEYİM Butonu',
                 '3 saniye basılı tutunca tüm acil kişilere güvende olduğunuz bildirilir.'),
             _helpItem(Icons.radio_button_checked, 'AB Shutter 3',
-                'Bluetooth düğmeye basınca ACİL tetiklenir. Uygulamanın açık ve AKTİF olması gerekir.'),
+                'Ses açma (+) 3 sn basılı tut → ACİL. Ses kapatma (−) 2 sn basılı tut → GÜVENDEYİM. Uygulama açık ve AKTİF olmalı.'),
             _helpItem(Icons.settings, 'Ayarlar',
                 'Sağ üstten acil kişi ekleyebilir, mesaj şablonunu düzenleyebilirsiniz.'),
           ],
@@ -466,6 +482,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void dispose() {
     _settingsSubscription?.cancel();
     _triggerStatusSubscription?.cancel();
+    _btTriggerSubscription?.cancel();
     _pulseController.dispose();
     _emergencyHoldController.dispose();
     _safeHoldController.dispose();
