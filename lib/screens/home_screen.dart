@@ -21,19 +21,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _isActive = true;
   TriggerStatus _triggerStatus = TriggerStatus.idle;
 
+  // Güvendeyim durumu
+  bool _isSafeSending = false;
+  String? _safeResultText;
+
   StreamSubscription? _settingsSubscription;
   StreamSubscription? _triggerStatusSubscription;
 
-  // ACİL butonu
+  // ACİL basılı tut
   late AnimationController _emergencyHoldController;
   bool _isEmergencyHolding = false;
 
-  // GÜVENDEYİM butonu
+  // GÜVENDEYİM basılı tut
   late AnimationController _safeHoldController;
   bool _isSafeHolding = false;
-  bool _isSafeSending = false;
 
-  // Pulse animasyonu (tetiklenince)
+  // Pulse (tetiklenince)
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
@@ -87,7 +90,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
-  // ── ACİL buton ──
+  // ── ACİL ──
   void _startEmergencyHold() {
     if (!_isActive || _triggerStatus != TriggerStatus.idle) return;
     setState(() => _isEmergencyHolding = true);
@@ -107,7 +110,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _emergencyService.trigger();
   }
 
-  // ── GÜVENDEYİM buton ──
+  // ── GÜVENDEYİM ──
   void _startSafeHold() {
     if (_isSafeSending) return;
     setState(() => _isSafeHolding = true);
@@ -122,20 +125,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _onSafeTriggered() async {
-    setState(() { _isSafeHolding = false; _isSafeSending = true; });
+    setState(() {
+      _isSafeHolding = false;
+      _isSafeSending = true;
+      _safeResultText = null;
+    });
     HapticFeedback.heavyImpact();
 
     final success = await _emergencyService.sendSafe();
 
     if (mounted) {
-      setState(() => _isSafeSending = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(success
-            ? '✅ Güvendeyim mesajı gönderildi'
-            : '⚠ Mesaj gönderilemedi'),
-        backgroundColor: success ? Colors.green : Colors.red,
-        duration: const Duration(seconds: 3),
-      ));
+      setState(() {
+        _isSafeSending = false;
+        _safeResultText = success
+            ? '✓ Güvendeyim mesajı gönderildi'
+            : '⚠ Mesaj gönderilemedi';
+      });
+
+      // 5 saniye sonra temizle
+      Future.delayed(const Duration(seconds: 5), () {
+        if (mounted) setState(() => _safeResultText = null);
+      });
     }
   }
 
@@ -150,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  String get _statusText {
+  String get _emergencyStatusText {
     switch (_triggerStatus) {
       case TriggerStatus.gettingGps:
         return 'GPS konumu alınıyor...';
@@ -169,12 +179,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  Color get _statusColor {
+  Color get _emergencyStatusColor {
     switch (_triggerStatus) {
       case TriggerStatus.success: return Colors.green;
       case TriggerStatus.error: return Colors.red;
       case TriggerStatus.fallback: return Colors.orange;
-      default: return Colors.blue;
+      default: return Colors.white70;
     }
   }
 
@@ -190,7 +200,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22),
         ),
         actions: [
-          // Aktif/Pasif toggle
           GestureDetector(
             onTap: _toggleActive,
             child: Padding(
@@ -227,93 +236,176 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Durum mesajı
-            if (_triggerStatus != TriggerStatus.idle)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                decoration: BoxDecoration(
-                  color: _statusColor.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _statusColor),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_triggerStatus == TriggerStatus.gettingGps ||
-                        _triggerStatus == TriggerStatus.calling)
-                      SizedBox(
-                        width: 16, height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2, color: _statusColor,
-                        ),
-                      ),
-                    if (_triggerStatus == TriggerStatus.gettingGps ||
-                        _triggerStatus == TriggerStatus.calling)
-                      const SizedBox(width: 8),
-                    Text(_statusText,
-                        style: TextStyle(color: _statusColor, fontWeight: FontWeight.w600)),
-                  ],
+      body: Column(
+        children: [
+          // ── ÜST BÖLÜM: ACİL ──
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2D0A0A),
+                border: Border(
+                  bottom: BorderSide(color: Colors.white12, width: 1),
                 ),
               ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Başlık
+                  const Text(
+                    'ACİL YARDIM',
+                    style: TextStyle(
+                      color: Color(0xFFE63946),
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 3,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
-            const Spacer(),
+                  // Buton
+                  _HoldButton(
+                    holdController: _emergencyHoldController,
+                    pulseController: _pulseController,
+                    pulseAnimation: _pulseAnimation,
+                    isHolding: _isEmergencyHolding,
+                    isActive: _isActive,
+                    isTriggering: _triggerStatus != TriggerStatus.idle,
+                    color: const Color(0xFFE63946),
+                    icon: Icons.warning_rounded,
+                    label: 'ACİL',
+                    sublabel: _isEmergencyHolding ? 'Bırakma...' : '3 sn basılı tut',
+                    onHoldStart: _startEmergencyHold,
+                    onHoldEnd: _cancelEmergencyHold,
+                    onHoldCancel: _cancelEmergencyHold,
+                  ),
 
-            // ── ACİL butonu ──
-            _HoldButton(
-              holdController: _emergencyHoldController,
-              isHolding: _isEmergencyHolding,
-              isActive: _isActive,
-              color: const Color(0xFFE63946),
-              icon: Icons.sos,
-              label: 'ACİL',
-              sublabel: _isEmergencyHolding ? 'Bırakma...' : '3 sn basılı tut',
-              onHoldStart: _startEmergencyHold,
-              onHoldEnd: _cancelEmergencyHold,
-              onHoldCancel: _cancelEmergencyHold,
-              pulseController: _pulseController,
-              pulseAnimation: _pulseAnimation,
-              isTriggering: _triggerStatus != TriggerStatus.idle,
-            ),
+                  const SizedBox(height: 16),
 
-            const SizedBox(height: 32),
-
-            // ── GÜVENDEYİM butonu ──
-            _HoldButton(
-              holdController: _safeHoldController,
-              isHolding: _isSafeHolding,
-              isActive: true,
-              color: const Color(0xFF2ECC71),
-              icon: _isSafeSending ? Icons.hourglass_top : Icons.check_circle,
-              label: 'GÜVENDEYİM',
-              sublabel: _isSafeSending
-                  ? 'Gönderiliyor...'
-                  : (_isSafeHolding ? 'Bırakma...' : '3 sn basılı tut'),
-              onHoldStart: _startSafeHold,
-              onHoldEnd: _cancelSafeHold,
-              onHoldCancel: _cancelSafeHold,
-              pulseController: _pulseController,
-              pulseAnimation: _pulseAnimation,
-              isTriggering: false,
-            ),
-
-            const Spacer(),
-
-            // Alt bilgi
-            Text(
-              _isActive ? 'Sistem aktif — AB Shutter hazır' : 'Sistem pasif',
-              style: TextStyle(
-                color: _isActive ? Colors.green.withOpacity(0.7) : Colors.grey,
-                fontSize: 12,
+                  // Durum mesajı
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: _triggerStatus != TriggerStatus.idle
+                        ? Container(
+                            key: ValueKey(_triggerStatus),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: _emergencyStatusColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: _emergencyStatusColor.withOpacity(0.5)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_triggerStatus == TriggerStatus.gettingGps ||
+                                    _triggerStatus == TriggerStatus.calling)
+                                  SizedBox(
+                                    width: 14, height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: _emergencyStatusColor,
+                                    ),
+                                  ),
+                                if (_triggerStatus == TriggerStatus.gettingGps ||
+                                    _triggerStatus == TriggerStatus.calling)
+                                  const SizedBox(width: 8),
+                                Text(
+                                  _emergencyStatusText,
+                                  style: TextStyle(
+                                    color: _emergencyStatusColor,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : const SizedBox(height: 36),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-          ],
-        ),
+          ),
+
+          // ── ALT BÖLÜM: GÜVENDEYİM ──
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              color: const Color(0xFF0A2D0F),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Başlık
+                  const Text(
+                    'GÜVENDEYİM',
+                    style: TextStyle(
+                      color: Color(0xFF2ECC71),
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 3,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Buton
+                  _HoldButton(
+                    holdController: _safeHoldController,
+                    pulseController: _pulseController,
+                    pulseAnimation: _pulseAnimation,
+                    isHolding: _isSafeHolding,
+                    isActive: true,
+                    isTriggering: false,
+                    color: const Color(0xFF2ECC71),
+                    icon: _isSafeSending ? Icons.hourglass_top : Icons.check_circle,
+                    label: 'GÜVENDEYİM',
+                    sublabel: _isSafeSending
+                        ? 'Gönderiliyor...'
+                        : (_isSafeHolding ? 'Bırakma...' : '3 sn basılı tut'),
+                    onHoldStart: _startSafeHold,
+                    onHoldEnd: _cancelSafeHold,
+                    onHoldCancel: _cancelSafeHold,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Sonuç mesajı
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: _safeResultText != null
+                        ? Container(
+                            key: ValueKey(_safeResultText),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: (_safeResultText!.startsWith('✓')
+                                      ? Colors.green
+                                      : Colors.red)
+                                  .withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: (_safeResultText!.startsWith('✓')
+                                        ? Colors.green
+                                        : Colors.red)
+                                    .withOpacity(0.5),
+                              ),
+                            ),
+                            child: Text(
+                              _safeResultText!,
+                              style: TextStyle(
+                                color: _safeResultText!.startsWith('✓')
+                                    ? Colors.green
+                                    : Colors.red,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          )
+                        : const SizedBox(height: 36),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -334,14 +426,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             const Text('Nasıl Kullanılır?',
                 style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            _helpItem(Icons.sos, 'ACİL Butonu',
-                '3 saniye basılı tutunca GPS konumunuzla birlikte tüm acil kişilere WhatsApp mesajı gönderilir ve arama başlar.'),
+            _helpItem(Icons.warning_rounded, 'ACİL Butonu',
+                '3 saniye basılı tutunca GPS konumunuzla birlikte tüm acil kişilere WhatsApp mesajı gönderilir.'),
             _helpItem(Icons.check_circle, 'GÜVENDEYİM Butonu',
-                '3 saniye basılı tutunca tüm acil kişilere "Güvendeyim" mesajı gönderilir.'),
+                '3 saniye basılı tutunca tüm acil kişilere güvende olduğunuz bildirilir.'),
             _helpItem(Icons.radio_button_checked, 'AB Shutter 3',
                 'Bluetooth düğmeye basınca ACİL tetiklenir. Uygulamanın açık ve AKTİF olması gerekir.'),
             _helpItem(Icons.settings, 'Ayarlar',
-                'Sağ üstteki ayarlar ikonundan acil kişi ekleyebilir, mesaj şablonunu düzenleyebilirsiniz.'),
+                'Sağ üstten acil kişi ekleyebilir, mesaj şablonunu düzenleyebilirsiniz.'),
           ],
         ),
       ),
@@ -360,10 +452,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                Text(desc,
-                    style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                Text(desc, style: const TextStyle(color: Colors.white60, fontSize: 12)),
               ],
             ),
           ),
@@ -384,7 +474,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 }
 
 // ─────────────────────────────────────────────
-// Basılı tut butonu widget'ı
+// Basılı tut butonu
 // ─────────────────────────────────────────────
 class _HoldButton extends StatelessWidget {
   final AnimationController holdController;
@@ -430,15 +520,15 @@ class _HoldButton extends StatelessWidget {
         builder: (context, child) => Transform.scale(
           scale: isTriggering ? pulseAnimation.value : 1.0,
           child: SizedBox(
-            width: 200,
-            height: 200,
+            width: 180,
+            height: 180,
             child: Stack(
               alignment: Alignment.center,
               children: [
                 // Dolum halkası
                 SizedBox(
-                  width: 200,
-                  height: 200,
+                  width: 180,
+                  height: 180,
                   child: CircularProgressIndicator(
                     value: holdController.value,
                     strokeWidth: 7,
@@ -450,18 +540,17 @@ class _HoldButton extends StatelessWidget {
                 ),
                 // Ana daire
                 Container(
-                  width: 184,
-                  height: 184,
+                  width: 164,
+                  height: 164,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: effectiveColor,
                     boxShadow: isActive
                         ? [
                             BoxShadow(
-                              color: (isHolding ? Colors.white : effectiveColor)
-                                  .withOpacity(0.5),
-                              blurRadius: isHolding ? 50 : 30,
-                              spreadRadius: isHolding ? 15 : 8,
+                              color: (isHolding ? Colors.white : effectiveColor).withOpacity(0.4),
+                              blurRadius: isHolding ? 40 : 20,
+                              spreadRadius: isHolding ? 10 : 5,
                             )
                           ]
                         : [],
@@ -469,17 +558,20 @@ class _HoldButton extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(icon, color: Colors.white, size: 52),
-                      const SizedBox(height: 6),
+                      Icon(icon, color: Colors.white, size: 44),
+                      const SizedBox(height: 4),
                       FittedBox(
                         fit: BoxFit.scaleDown,
-                        child: Text(
-                          label,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            label,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1,
+                            ),
                           ),
                         ),
                       ),
@@ -488,7 +580,7 @@ class _HoldButton extends StatelessWidget {
                         sublabel,
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.8),
-                          fontSize: 11,
+                          fontSize: 10,
                         ),
                       ),
                     ],
