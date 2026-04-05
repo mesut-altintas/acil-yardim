@@ -471,13 +471,16 @@ class _HoldButton extends StatelessWidget {
                     children: [
                       Icon(icon, color: Colors.white, size: 52),
                       const SizedBox(height: 6),
-                      Text(
-                        label,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 2,
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 2),
