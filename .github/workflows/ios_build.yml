@@ -31,7 +31,7 @@ jobs:
 
       - name: Revoke old Development certificates
         run: |
-          python3 -m pip install pyjwt cryptography -q
+          python3 -m pip install pyjwt cryptography -q --break-system-packages
           python3 << 'PYEOF'
           import jwt, time, json, urllib.request, sys
 
