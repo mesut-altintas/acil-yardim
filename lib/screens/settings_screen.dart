@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/emergency_contact.dart';
 import '../services/contact_service.dart';
 import '../services/firestore_service.dart';
@@ -143,14 +144,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Kişi eklenemedi: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        if (e.toString().contains('SETTINGS_REQUIRED')) {
+          _showContactsPermissionDialog();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Kişi eklenemedi: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     }
+  }
+
+  void _showContactsPermissionDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rehber İzni Gerekli'),
+        content: const Text(
+          'Rehber erişimi daha önce reddedildi. '
+          'Ayarlar\'dan "Rehber" iznini açmanız gerekiyor.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('İptal'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              openAppSettings();
+            },
+            child: const Text('Ayarları Aç'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _addManually() async {

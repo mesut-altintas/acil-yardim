@@ -21,13 +21,23 @@ class ContactService {
 
   /// Rehber izni iste ve kişi seçici aç
   Future<Contact?> pickContact() async {
-    // Rehber iznini kontrol et ve iste
-    final status = await Permission.contacts.request();
-    if (!status.isGranted) {
+    // Kalıcı red kontrolü — Ayarlar'a yönlendir
+    final status = await Permission.contacts.status;
+    if (status.isPermanentlyDenied) {
+      throw Exception('SETTINGS_REQUIRED');
+    }
+
+    // flutter_contacts kendi izin mekanizmasıyla iste
+    final granted = await FlutterContacts.requestPermission();
+    if (!granted) {
+      final newStatus = await Permission.contacts.status;
+      if (newStatus.isPermanentlyDenied) {
+        throw Exception('SETTINGS_REQUIRED');
+      }
       throw Exception('Rehber erişim izni reddedildi');
     }
 
-    // Flutter Contacts paketi ile sistem rehber seçicisini aç
+    // Sistem rehber seçicisini aç
     final contact = await FlutterContacts.openExternalPick();
     return contact;
   }
