@@ -236,6 +236,24 @@ class EmergencyService {
     print('[EmergencyService] Durum: $status');
   }
 
+  // ─────────────────────────────────────────────
+  // Güvendeyim bildirimi
+  // ─────────────────────────────────────────────
+  Future<bool> sendSafe() async {
+    try {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) return false;
+
+      final callable = FirebaseFunctions.instance.httpsCallable('sendSafeMessage');
+      await callable.call({'userId': userId});
+      print('[EmergencyService] Güvendeyim mesajı gönderildi');
+      return true;
+    } catch (e) {
+      print('[EmergencyService] Güvendeyim hatası: $e');
+      return false;
+    }
+  }
+
   void dispose() {
     _statusController.close();
   }

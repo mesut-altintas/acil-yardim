@@ -138,6 +138,49 @@ exports.triggerEmergency = onCall(async (request) => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// Güvendeyim bildirimi — tüm acil kişilere WhatsApp mesajı gönder
+// ─────────────────────────────────────────────────────────────
+exports.sendSafeMessage = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Bu işlem için giriş yapılmış olması gerekiyor.");
+  }
+
+  const { userId } = request.data;
+  if (!userId) {
+    throw new HttpsError("invalid-argument", "userId zorunludur.");
+  }
+
+  const userRef = admin.firestore().collection("users").doc(userId);
+  const [settingsDoc, contactsSnap] = await Promise.all([
+    userRef.collection("settings").doc("main").get(),
+    userRef.collection("contacts").orderBy("order").get(),
+  ]);
+
+  const settings = settingsDoc.exists ? settingsDoc.data() : {};
+  const callerName = settings.callerName || "Kullanıcı";
+  const safeMessage = `✅ ${callerName} güvende. Endişelenmeyin.`;
+
+  const twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
+  const contacts = contactsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+  const results = await Promise.allSettled(
+    contacts
+      .filter((c) => c.channels && c.channels.includes("whatsapp"))
+      .map(async (contact) => {
+        await twilioClient.messages.create({
+          body: safeMessage,
+          from: process.env.TWILIO_WHATSAPP,
+          to: `whatsapp:${contact.phone}`,
+        });
+        console.log(`Güvendeyim mesajı gönderildi: ${contact.name}`);
+        return { contactId: contact.id, success: true };
+      })
+  );
+
+  return { success: true, results };
+});
+
+// ─────────────────────────────────────────────────────────────
 // Twilio arama durumu webhook'u (opsiyonel — loglama için)
 // ─────────────────────────────────────────────────────────────
 exports.callStatusCallback = onRequest((req, res) => {
