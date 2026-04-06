@@ -67,26 +67,40 @@ exports.triggerEmergency = onCall(async (request) => {
     const errors = [];
 
     // Firebase Cloud Messaging bildirimi gönder
-    if (contact.channels && contact.channels.includes("notification") && contact.fcmToken) {
+    if (contact.channels && contact.channels.includes("notification")) {
       try {
-        await admin.messaging().send({
-          token: contact.fcmToken,
-          notification: { title: "🚨 ACİL YARDIM", body: fullMessage },
-          data: {
-            type: "emergency",
-            latitude: String(latitude),
-            longitude: String(longitude),
-            userId: userId,
-          },
-          android: {
-            priority: "high",
-            notification: { channelId: "emergency_channel", sound: "alarm" },
-          },
-          apns: {
-            payload: { aps: { sound: "alarm.caf", badge: 1 } },
-          },
-        });
-        console.log(`FCM bildirimi gönderildi: ${contact.name}`);
+        // phoneRegistry'den FCM token ara
+        let fcmToken = contact.fcmToken || null;
+        if (!fcmToken && contact.phone) {
+          const registryDoc = await admin.firestore()
+            .collection("phoneRegistry").doc(contact.phone).get();
+          if (registryDoc.exists) {
+            fcmToken = registryDoc.data().fcmToken;
+          }
+        }
+
+        if (fcmToken) {
+          await admin.messaging().send({
+            token: fcmToken,
+            notification: { title: "🚨 ACİL YARDIM", body: fullMessage },
+            data: {
+              type: "emergency",
+              latitude: String(latitude),
+              longitude: String(longitude),
+              userId: userId,
+            },
+            android: {
+              priority: "high",
+              notification: { channelId: "emergency_channel", sound: "alarm" },
+            },
+            apns: {
+              payload: { aps: { sound: "alarm.caf", badge: 1 } },
+            },
+          });
+          console.log(`FCM bildirimi gönderildi: ${contact.name}`);
+        } else {
+          console.log(`FCM token bulunamadı: ${contact.name} (${contact.phone})`);
+        }
       } catch (err) {
         console.error(`FCM hatası (${contact.name}):`, err.message);
         errors.push({ type: "fcm", error: err.message });

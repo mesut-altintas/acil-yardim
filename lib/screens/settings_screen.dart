@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -25,6 +26,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _messageController = TextEditingController();
   final TextEditingController _safeMessageController = TextEditingController();
   final TextEditingController _callerNameController = TextEditingController();
+  final TextEditingController _myPhoneController = TextEditingController();
 
   // Acil kişiler listesi
   List<EmergencyContact> _contacts = [];
@@ -43,6 +45,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _messageController.text = settings['message'] ?? '';
     _safeMessageController.text = settings['safeMessage'] ?? '';
     _callerNameController.text = settings['callerName'] ?? '';
+    _myPhoneController.text = settings['myPhone'] ?? '';
   }
 
   Future<void> _loadContacts() async {
@@ -57,11 +60,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _saveSettings() async {
     setState(() => _isSaving = true);
     try {
+      final myPhone = _myPhoneController.text.trim();
       await _firestoreService.updateSettings({
         'message': _messageController.text.trim(),
         'safeMessage': _safeMessageController.text.trim(),
         'callerName': _callerNameController.text.trim(),
+        'myPhone': myPhone,
       });
+
+      // Telefon numarası varsa FCM token ile registry'ye yaz
+      if (myPhone.isNotEmpty) {
+        final fcmToken = await _getFcmToken();
+        if (fcmToken != null) {
+          await _firestoreService.registerPhoneWithFcmToken(myPhone, fcmToken);
+        }
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -204,8 +217,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             TextField(
               controller: phoneController,
               decoration: const InputDecoration(
-                labelText: 'Telefon (+905XXXXXXXXX)',
-                hintText: '+905332769997',
+                labelText: 'Telefon',
+                hintText: '+905XXXXXXXXX',
               ),
               keyboardType: TextInputType.phone,
             ),
@@ -336,6 +349,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ─────────────────────────────────────────────
   // Google ile giriş/çıkış
   // ─────────────────────────────────────────────
+  Future<String?> _getFcmToken() async {
+    try {
+      return await FirebaseMessaging.instance.getToken();
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _signOut() async {
     await GoogleSignIn().signOut();
     await FirebaseAuth.instance.signOut();
@@ -395,6 +416,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             controller: _callerNameController,
             hint: 'Ad Soyad',
             label: 'Adınız (mesajlarda kullanılır)',
+          ),
+          const SizedBox(height: 8),
+          _DarkTextField(
+            controller: _myPhoneController,
+            hint: '+905XXXXXXXXX',
+            label: 'Kendi telefon numaram (FCM bildirimi için)',
+            keyboardType: TextInputType.phone,
           ),
 
           const SizedBox(height: 24),
@@ -594,6 +622,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _messageController.dispose();
     _safeMessageController.dispose();
     _callerNameController.dispose();
+    _myPhoneController.dispose();
     super.dispose();
   }
 }
@@ -858,12 +887,14 @@ class _DarkTextField extends StatelessWidget {
   final String hint;
   final String label;
   final int maxLines;
+  final TextInputType keyboardType;
 
   const _DarkTextField({
     required this.controller,
     required this.hint,
     required this.label,
     this.maxLines = 1,
+    this.keyboardType = TextInputType.text,
   });
 
   @override
@@ -871,6 +902,7 @@ class _DarkTextField extends StatelessWidget {
     return TextField(
       controller: controller,
       maxLines: maxLines,
+      keyboardType: keyboardType,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,

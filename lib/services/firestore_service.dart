@@ -154,6 +154,36 @@ class FirestoreService {
   }
 
   // ─────────────────────────────────────────────
+  // PHONE REGISTRY — numara → FCM token eşleme
+  // ─────────────────────────────────────────────
+
+  /// Kendi telefon numaramı ve FCM token'ımı global registry'ye yaz
+  Future<void> registerPhoneWithFcmToken(String phone, String fcmToken) async {
+    final normalized = _normalizePhone(phone);
+    if (normalized.isEmpty) return;
+    await _db.collection('phoneRegistry').doc(normalized).set({
+      'fcmToken': fcmToken,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Telefon numarası kayıtlı mı kontrol et (kayıt sil)
+  Future<void> unregisterPhone(String phone) async {
+    final normalized = _normalizePhone(phone);
+    if (normalized.isEmpty) return;
+    await _db.collection('phoneRegistry').doc(normalized).delete();
+  }
+
+  String _normalizePhone(String phone) {
+    String p = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+    if (p.isEmpty) return '';
+    if (!p.startsWith('+')) {
+      p = p.startsWith('0') ? '+9$p' : '+90$p';
+    }
+    return p;
+  }
+
+  // ─────────────────────────────────────────────
   // YARDIMCI METODLAR
   // ─────────────────────────────────────────────
 
