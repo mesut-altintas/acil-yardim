@@ -447,7 +447,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             _helpItem(Icons.check_circle, 'GÜVENDEYİM Butonu',
                 '3 saniye basılı tutunca tüm acil kişilere güvende olduğunuz bildirilir.'),
             _helpItem(Icons.radio_button_checked, 'AB Shutter 3',
-                'Ses açma (+) 3 sn basılı tut → ACİL. Ses kapatma (−) 2 sn basılı tut → GÜVENDEYİM. Uygulama açık ve AKTİF olmalı.'),
+                'Ses açma (+) 2 kez bas → ACİL. Ses kapatma (−) 2 kez bas → GÜVENDEYİM. (Android: 3 sn / 2 sn basılı tut). Uygulama açık ve AKTİF olmalı.'),
             _helpItem(Icons.settings, 'Ayarlar',
                 'Sağ üstten acil kişi ekleyebilir, mesaj şablonunu düzenleyebilirsiniz.'),
           ],

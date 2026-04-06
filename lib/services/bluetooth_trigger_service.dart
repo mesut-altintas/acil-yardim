@@ -1,11 +1,14 @@
 // Bluetooth HID tetikleme servisi
 // AB Shutter 3, telefona Bluetooth klavye olarak görünür.
-// Android: HardwareKeyboard API
-// iOS: AVAudioSession volume observer (native EventChannel)
 //
-// Buton davranışı:
-//   Ses açma (volume up):   3 saniye basılı tut → ACİL tetikle
-//   Ses kapatma (volume down): 2 saniye basılı tut → GÜVENDEYİM tetikle
+// iOS davranışı (AB Shutter tek event gönderir, hold tespit edilemez):
+//   Ses açma (+) 2x kısa sürede bas → ACİL
+//   Ses kapatma (−) 2x kısa sürede bas → GÜVENDEYİM
+//   Pencere: 2 saniye
+//
+// Android davranışı (KeyDown/Up mevcut, hold tespit edilebilir):
+//   Ses açma (+) 3 saniye basılı tut → ACİL
+//   Ses kapatma (−) 2 saniye basılı tut → GÜVENDEYİM
 
 import 'dart:async';
 import 'dart:io';
@@ -20,13 +23,19 @@ class BluetoothTriggerService {
   static const EventChannel _volumeChannel =
       EventChannel('com.acilyardim/volume_button');
 
-  // Hold eşikleri (ms)
-  static const int _emergencyHoldMs = 3000; // ses açma → ACİL
-  static const int _safeHoldMs = 2000;      // ses kapatma → GÜVENDEYİM
-  // Bu süre boyunca yeni event gelmezse bırakıldı sayılır
+  // iOS: çift basış penceresi (ms)
+  static const int _doublePressWindowMs = 2000;
+
+  // Android: hold eşikleri (ms)
+  static const int _emergencyHoldMs = 3000;
+  static const int _safeHoldMs = 2000;
   static const int _releaseTimeoutMs = 600;
 
-  // Hold durumu
+  // iOS çift basış durumu
+  DateTime? _lastUpPress;
+  DateTime? _lastDownPress;
+
+  // Android hold durumu
   DateTime? _upHoldStart;
   DateTime? _downHoldStart;
   Timer? _upReleaseTimer;
@@ -37,12 +46,10 @@ class BluetoothTriggerService {
 
   StreamSubscription? _volumeSubscription;
 
-  // AB Shutter bağlantı durumu
   final StreamController<bool> _connectionController =
       StreamController<bool>.broadcast();
   Stream<bool> get connectionStream => _connectionController.stream;
 
-  // Tetikleme olayları: 'emergency' veya 'safe'
   final StreamController<String> _triggerController =
       StreamController<String>.broadcast();
   Stream<String> get triggerStream => _triggerController.stream;
@@ -54,9 +61,9 @@ class BluetoothTriggerService {
       _volumeSubscription =
           _volumeChannel.receiveBroadcastStream().listen((event) {
         if (event == 'volume_up') {
-          _onVolumeUp();
+          _onIosVolumeUp();
         } else if (event == 'volume_down') {
-          _onVolumeDown();
+          _onIosVolumeDown();
         }
       });
     } else {
@@ -73,13 +80,41 @@ class BluetoothTriggerService {
     } else {
       HardwareKeyboard.instance.removeHandler(_onKeyEvent);
     }
-    _resetUpHold();
-    _resetDownHold();
+    _resetAndroidUpHold();
+    _resetAndroidDownHold();
+    _lastUpPress = null;
+    _lastDownPress = null;
     _isListening = false;
   }
 
-  // ── Ses açma: 3 saniye basılı tut → ACİL ──
-  void _onVolumeUp() {
+  // ── iOS: ses açma 2x → ACİL ──
+  void _onIosVolumeUp() {
+    _connectionController.add(true);
+    final now = DateTime.now();
+    if (_lastUpPress != null &&
+        now.difference(_lastUpPress!).inMilliseconds <= _doublePressWindowMs) {
+      _lastUpPress = null;
+      _triggerController.add('emergency');
+    } else {
+      _lastUpPress = now;
+    }
+  }
+
+  // ── iOS: ses kapatma 2x → GÜVENDEYİM ──
+  void _onIosVolumeDown() {
+    _connectionController.add(true);
+    final now = DateTime.now();
+    if (_lastDownPress != null &&
+        now.difference(_lastDownPress!).inMilliseconds <= _doublePressWindowMs) {
+      _lastDownPress = null;
+      _triggerController.add('safe');
+    } else {
+      _lastDownPress = now;
+    }
+  }
+
+  // ── Android: hold detection ──
+  void _onAndroidVolumeUp() {
     _connectionController.add(true);
     _upReleaseTimer?.cancel();
     _upReleaseTimer = null;
@@ -89,19 +124,17 @@ class BluetoothTriggerService {
 
     final held = now.difference(_upHoldStart!).inMilliseconds;
     if (held >= _emergencyHoldMs) {
-      _resetUpHold();
+      _resetAndroidUpHold();
       _triggerController.add('emergency');
       return;
     }
 
-    // Sonraki event gelmezse bırakıldı say
     _upReleaseTimer = Timer(Duration(milliseconds: _releaseTimeoutMs), () {
       _upHoldStart = null;
     });
   }
 
-  // ── Ses kapatma: 2 saniye basılı tut → GÜVENDEYİM ──
-  void _onVolumeDown() {
+  void _onAndroidVolumeDown() {
     _connectionController.add(true);
     _downReleaseTimer?.cancel();
     _downReleaseTimer = null;
@@ -111,7 +144,7 @@ class BluetoothTriggerService {
 
     final held = now.difference(_downHoldStart!).inMilliseconds;
     if (held >= _safeHoldMs) {
-      _resetDownHold();
+      _resetAndroidDownHold();
       _triggerController.add('safe');
       return;
     }
@@ -121,19 +154,18 @@ class BluetoothTriggerService {
     });
   }
 
-  void _resetUpHold() {
+  void _resetAndroidUpHold() {
     _upReleaseTimer?.cancel();
     _upReleaseTimer = null;
     _upHoldStart = null;
   }
 
-  void _resetDownHold() {
+  void _resetAndroidDownHold() {
     _downReleaseTimer?.cancel();
     _downReleaseTimer = null;
     _downHoldStart = null;
   }
 
-  // Android: HardwareKeyboard handler
   bool _onKeyEvent(KeyEvent event) {
     final isVolumeUp =
         event.logicalKey == LogicalKeyboardKey.audioVolumeUp ||
@@ -145,12 +177,11 @@ class BluetoothTriggerService {
     if (!isVolumeUp && !isVolumeDown) return false;
 
     if (event is KeyDownEvent || event is KeyRepeatEvent) {
-      if (isVolumeUp) _onVolumeUp();
-      if (isVolumeDown) _onVolumeDown();
+      if (isVolumeUp) _onAndroidVolumeUp();
+      if (isVolumeDown) _onAndroidVolumeDown();
     } else if (event is KeyUpEvent) {
-      // Android: gerçek bırakma eventi var, direkt sıfırla
-      if (isVolumeUp) _resetUpHold();
-      if (isVolumeDown) _resetDownHold();
+      if (isVolumeUp) _resetAndroidUpHold();
+      if (isVolumeDown) _resetAndroidDownHold();
     }
 
     return true;
