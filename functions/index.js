@@ -50,8 +50,9 @@ exports.triggerEmergency = onCall(async (request) => {
   }
 
   // Google Maps linki oluştur
+  const callerName = settings.callerName || "Kullanıcı";
   const mapsLink = `https://maps.google.com/?q=${latitude},${longitude}`;
-  const fullMessage = `🚨 ${settings.message}\n📍 Konum: ${mapsLink}`;
+  const fullMessage = `🚨 ${settings.message}\n📍 Konum: ${mapsLink}\n— ${callerName}`;
 
   // Twilio istemcisi — .env dosyasından process.env ile oku
   const twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
@@ -158,7 +159,7 @@ exports.sendSafeMessage = onCall(async (request) => {
 
   const settings = settingsDoc.exists ? settingsDoc.data() : {};
   const callerName = settings.callerName || "Kullanıcı";
-  const safeMessage = settings.safeMessage || `✅ ${callerName} güvende. Endişelenmeyin.`;
+  const safeMessage = (settings.safeMessage || `✅ ${callerName} güvende. Endişelenmeyin.`) + `\n— ${callerName}`;
 
   const twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
   const contacts = contactsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));

@@ -28,7 +28,7 @@ class BluetoothTriggerService {
 
   // Android: hold eşikleri (ms)
   static const int _emergencyHoldMs = 3000;
-  static const int _safeHoldMs = 2000;
+  static const int _safeHoldMs = 3000;
   static const int _releaseTimeoutMs = 600;
 
   // iOS çift basış durumu
