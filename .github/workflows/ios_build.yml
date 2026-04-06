@@ -54,8 +54,8 @@ jobs:
           certs = data.get("data", [])
           print(f"Development sertifika sayısı: {len(certs)}")
 
-          if len(certs) < 8:
-              print("Limit dolmamış, silme gerekmiyor")
+          if len(certs) == 0:
+              print("Silinecek sertifika yok")
               sys.exit(0)
 
           # Hepsini sil — build yeni bir tane oluşturacak
