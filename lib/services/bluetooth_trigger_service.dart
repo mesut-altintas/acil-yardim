@@ -58,6 +58,7 @@ class BluetoothTriggerService {
     if (_isListening) return;
 
     if (Platform.isIOS) {
+      // iOS: AVAudioSession volume observer (native)
       _volumeSubscription =
           _volumeChannel.receiveBroadcastStream().listen((event) {
         if (event == 'volume_up') {
@@ -67,6 +68,15 @@ class BluetoothTriggerService {
         }
       });
     } else {
+      // Android: ContentObserver volume channel (native) + HardwareKeyboard fallback
+      _volumeSubscription =
+          _volumeChannel.receiveBroadcastStream().listen((event) {
+        if (event == 'volume_up') {
+          _onIosVolumeUp(); // iOS ile aynı çift basış mantığı
+        } else if (event == 'volume_down') {
+          _onIosVolumeDown();
+        }
+      });
       HardwareKeyboard.instance.addHandler(_onKeyEvent);
     }
 
@@ -74,10 +84,9 @@ class BluetoothTriggerService {
   }
 
   Future<void> stop() async {
-    if (Platform.isIOS) {
-      await _volumeSubscription?.cancel();
-      _volumeSubscription = null;
-    } else {
+    await _volumeSubscription?.cancel();
+    _volumeSubscription = null;
+    if (!Platform.isIOS) {
       HardwareKeyboard.instance.removeHandler(_onKeyEvent);
     }
     _resetAndroidUpHold();
