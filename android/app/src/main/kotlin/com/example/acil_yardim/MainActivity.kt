@@ -1,19 +1,18 @@
 package com.example.acil_yardim
 
+import android.content.BroadcastReceiver
 import android.content.Context
-import android.database.ContentObserver
-import android.media.AudioManager
-import android.net.Uri
-import android.os.Handler
-import android.os.Looper
-import android.provider.Settings
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 
 class MainActivity : FlutterActivity() {
 
-    private var volumeObserver: VolumeObserver? = null
+    private var eventSink: EventChannel.EventSink? = null
+    private var volumeReceiver: BroadcastReceiver? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -21,46 +20,47 @@ class MainActivity : FlutterActivity() {
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, "com.acilyardim/volume_button")
             .setStreamHandler(object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
-                    val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                    val observer = VolumeObserver(Handler(Looper.getMainLooper()), audioManager, events)
-                    contentResolver.registerContentObserver(
-                        Settings.System.CONTENT_URI, true, observer
-                    )
-                    volumeObserver = observer
+                    eventSink = events
+
+                    // Foreground Service başlat
+                    val serviceIntent = Intent(this@MainActivity, VolumeService::class.java)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(serviceIntent)
+                    } else {
+                        startService(serviceIntent)
+                    }
+
+                    // Broadcast receiver kaydet
+                    val receiver = object : BroadcastReceiver() {
+                        override fun onReceive(context: Context, intent: Intent) {
+                            val event = intent.getStringExtra(VolumeService.EXTRA_EVENT)
+                            if (event != null) {
+                                runOnUiThread { eventSink?.success(event) }
+                            }
+                        }
+                    }
+                    val filter = IntentFilter(VolumeService.ACTION_VOLUME_EVENT)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        registerReceiver(receiver, filter, RECEIVER_NOT_EXPORTED)
+                    } else {
+                        registerReceiver(receiver, filter)
+                    }
+                    volumeReceiver = receiver
                 }
 
                 override fun onCancel(arguments: Any?) {
-                    volumeObserver?.let { contentResolver.unregisterContentObserver(it) }
-                    volumeObserver = null
+                    volumeReceiver?.let { unregisterReceiver(it) }
+                    volumeReceiver = null
+                    eventSink = null
+                    stopService(Intent(this@MainActivity, VolumeService::class.java))
                 }
             })
     }
-}
 
-class VolumeObserver(
-    handler: Handler,
-    private val audioManager: AudioManager,
-    private val events: EventChannel.EventSink
-) : ContentObserver(handler) {
-
-    private var lastVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-    private val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-
-    override fun onChange(selfChange: Boolean, uri: Uri?) {
-        val newVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-
-        if (newVolume > lastVolume) {
-            lastVolume = newVolume
-            // Sesi ortaya sıfırla
-            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume / 2, 0)
-            lastVolume = maxVolume / 2
-            events.success("volume_up")
-        } else if (newVolume < lastVolume) {
-            lastVolume = newVolume
-            // Sesi ortaya sıfırla
-            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume / 2, 0)
-            lastVolume = maxVolume / 2
-            events.success("volume_down")
+    override fun onDestroy() {
+        volumeReceiver?.let {
+            try { unregisterReceiver(it) } catch (_: Exception) {}
         }
+        super.onDestroy()
     }
 }

@@ -49,6 +49,11 @@
             </intent-filter>
         </service>
 
+        <service
+            android:name=".VolumeService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false" />
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
