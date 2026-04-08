@@ -13,6 +13,7 @@ class TriggerLog {
   final bool success;         // Genel başarı durumu
   final String type;          // 'emergency' veya 'safe'
   final String? message;      // Gönderilen mesaj metni
+  final String direction;     // 'sent' veya 'received'
 
   TriggerLog({
     required this.id,
@@ -24,9 +25,11 @@ class TriggerLog {
     this.success = true,
     this.type = 'emergency',
     this.message,
+    this.direction = 'sent',
   });
 
   bool get isSafe => type == 'safe';
+  bool get isReceived => direction == 'received';
 
   String? get mapsLink => hasLocation && latitude != null && longitude != null
       ? 'https://maps.google.com/?q=$latitude,$longitude'
@@ -55,6 +58,7 @@ class TriggerLog {
       success: data['success'] ?? true,
       type: data['type'] as String? ?? 'emergency',
       message: data['message'] as String?,
+      direction: data['direction'] as String? ?? 'sent',
     );
   }
 

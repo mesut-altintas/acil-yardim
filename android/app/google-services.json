@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "712176340011-75rgab3m6mar4p6vgpnkllb9bp1g5i24.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.acil_yardim",
+            "certificate_hash": "158fe87d75062e5ffc29ef963a4ea4b6daa857f5"
+          }
+        },
+        {
           "client_id": "712176340011-qfaeefu4heac7qhnag115drnqfe9vrl9.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -29,6 +37,13 @@
             {
               "client_id": "712176340011-qfaeefu4heac7qhnag115drnqfe9vrl9.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "712176340011-fl2kisdcpr7skjmk07nskhd3i1kq1dbs.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.acilYardim"
+              }
             }
           ]
         }

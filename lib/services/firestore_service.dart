@@ -138,6 +138,40 @@ class FirestoreService {
             .toList());
   }
 
+  // ── Alınan bildirimler ──
+  CollectionReference get _receivedRef =>
+      _db.collection('users').doc(_userId).collection('receivedAlerts');
+
+  Stream<List<TriggerLog>> watchReceivedAlerts() {
+    return _receivedRef
+        .orderBy('timestamp', descending: true)
+        .limit(20)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => TriggerLog.fromFirestore(doc.id, doc.data() as Map<String, dynamic>))
+            .toList());
+  }
+
+  Future<void> logReceivedAlert({
+    required String type,
+    required String title,
+    required String body,
+    double? latitude,
+    double? longitude,
+  }) async {
+    final hasLoc = latitude != null && longitude != null;
+    await _receivedRef.add({
+      'type': type,
+      'direction': 'received',
+      'timestamp': FieldValue.serverTimestamp(),
+      'message': body,
+      'hasLocation': hasLoc,
+      'latitude': latitude,
+      'longitude': longitude,
+      'contactCount': 0,
+    });
+  }
+
   /// Güvendeyim mesajını geçmişe kaydet
   Future<void> logSafeMessage(int contactCount, String message) async {
     await _logsRef.add({

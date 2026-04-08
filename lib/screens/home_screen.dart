@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../models/trigger_log.dart';
 import '../services/bluetooth_trigger_service.dart';
 import '../services/emergency_service.dart';
 import '../services/firestore_service.dart';
@@ -67,8 +68,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (message != null && mounted) {
       // Kısa gecikme — widget tam yerleşsin
       await Future.delayed(const Duration(milliseconds: 500));
-      if (mounted) _showNotificationSheet(message);
+      if (mounted) _logAndShowNotification(message);
     }
+  }
+
+  // Gelen bildirimi Firestore'a kaydet ve bottom sheet göster
+  void _logAndShowNotification(RemoteMessage message) {
+    final data = message.data;
+    final type = data['type'] ?? 'emergency';
+    final title = message.notification?.title ?? (type == 'safe' ? '✅ GÜVENDEYİM' : '🚨 ACİL YARDIM');
+    final body = message.notification?.body ?? '';
+    final lat = double.tryParse(data['latitude'] ?? '');
+    final lng = double.tryParse(data['longitude'] ?? '');
+
+    // Firestore'a kaydet (async, bekleme)
+    _firestoreService.logReceivedAlert(
+      type: type,
+      title: title,
+      body: body,
+      latitude: lat,
+      longitude: lng,
+    );
+
+    _showNotificationSheet(message);
   }
 
   void _showNotificationSheet(RemoteMessage message) {
@@ -285,16 +307,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
     });
 
-    // Ön planda gelen FCM — bottom sheet göster
+    // Ön planda gelen FCM — bottom sheet göster + geçmişe kaydet
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (!mounted) return;
-      _showNotificationSheet(message);
+      _logAndShowNotification(message);
     });
 
     // Arka planda bildirime tıklanınca
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       if (!mounted) return;
-      _showNotificationSheet(message);
+      _logAndShowNotification(message);
     });
 
     // AB Shutter hold tetiklemelerini dinle
@@ -464,7 +486,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ],
       ),
-      body: Column(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // Her yarının yüksekliği — başlık + boşluk + durum alanı için 100px bırak
+          final halfH = constraints.maxHeight / 2;
+          final buttonSize = (halfH - 100).clamp(120.0, 180.0);
+      return Column(
         children: [
           // ── ÜST BÖLÜM: ACİL ──
           Expanded(
@@ -476,81 +503,88 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   bottom: BorderSide(color: Colors.white12, width: 1),
                 ),
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Başlık
-                  const Text(
-                    'ACİL YARDIM',
-                    style: TextStyle(
-                      color: Color(0xFFE63946),
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 3,
+              child: SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: halfH),
+                  child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Başlık
+                    const Text(
+                      'ACİL YARDIM',
+                      style: TextStyle(
+                        color: Color(0xFFE63946),
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 3,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Buton
-                  _HoldButton(
-                    holdController: _emergencyHoldController,
-                    pulseController: _pulseController,
-                    pulseAnimation: _pulseAnimation,
-                    isHolding: _isEmergencyHolding,
-                    isActive: _isActive,
-                    isTriggering: _triggerStatus != TriggerStatus.idle,
-                    color: const Color(0xFFE63946),
-                    icon: Icons.warning_rounded,
-                    label: 'ACİL',
-                    sublabel: _isEmergencyHolding ? 'Bırakma...' : '3 sn basılı tut',
-                    onHoldStart: _startEmergencyHold,
-                    onHoldEnd: _cancelEmergencyHold,
-                    onHoldCancel: _cancelEmergencyHold,
-                  ),
+                    // Buton
+                    _HoldButton(
+                      holdController: _emergencyHoldController,
+                      pulseController: _pulseController,
+                      pulseAnimation: _pulseAnimation,
+                      isHolding: _isEmergencyHolding,
+                      isActive: _isActive,
+                      isTriggering: _triggerStatus != TriggerStatus.idle,
+                      color: const Color(0xFFE63946),
+                      icon: Icons.warning_rounded,
+                      label: 'ACİL',
+                      sublabel: _isEmergencyHolding ? 'Bırakma...' : '3 sn basılı tut',
+                      onHoldStart: _startEmergencyHold,
+                      onHoldEnd: _cancelEmergencyHold,
+                      onHoldCancel: _cancelEmergencyHold,
+                      size: buttonSize,
+                    ),
 
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Durum mesajı
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child: _triggerStatus != TriggerStatus.idle
-                        ? Container(
-                            key: ValueKey(_triggerStatus),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: _emergencyStatusColor.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: _emergencyStatusColor.withOpacity(0.5)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (_triggerStatus == TriggerStatus.gettingGps ||
-                                    _triggerStatus == TriggerStatus.calling)
-                                  SizedBox(
-                                    width: 14, height: 14,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
+                    // Durum mesajı
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: _triggerStatus != TriggerStatus.idle
+                          ? Container(
+                              key: ValueKey(_triggerStatus),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: _emergencyStatusColor.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: _emergencyStatusColor.withOpacity(0.5)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (_triggerStatus == TriggerStatus.gettingGps ||
+                                      _triggerStatus == TriggerStatus.calling)
+                                    SizedBox(
+                                      width: 14, height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: _emergencyStatusColor,
+                                      ),
+                                    ),
+                                  if (_triggerStatus == TriggerStatus.gettingGps ||
+                                      _triggerStatus == TriggerStatus.calling)
+                                    const SizedBox(width: 8),
+                                  Text(
+                                    _emergencyStatusText,
+                                    style: TextStyle(
                                       color: _emergencyStatusColor,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                if (_triggerStatus == TriggerStatus.gettingGps ||
-                                    _triggerStatus == TriggerStatus.calling)
-                                  const SizedBox(width: 8),
-                                Text(
-                                  _emergencyStatusText,
-                                  style: TextStyle(
-                                    color: _emergencyStatusColor,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : const SizedBox(height: 36),
+                                ],
+                              ),
+                            )
+                          : const SizedBox(height: 36),
+                    ),
+                  ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -560,9 +594,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             child: Container(
               width: double.infinity,
               color: const Color(0xFF0A2D0F),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+              child: SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: halfH),
+                  child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                   // Başlık
                   const Text(
                     'GÜVENDEYİM',
@@ -592,6 +630,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     onHoldStart: _startSafeHold,
                     onHoldEnd: _cancelSafeHold,
                     onHoldCancel: _cancelSafeHold,
+                    size: buttonSize,
                   ),
 
                   const SizedBox(height: 16),
@@ -630,10 +669,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         : const SizedBox(height: 36),
                   ),
                 ],
+                  ),
+                ),
               ),
             ),
           ),
         ],
+      );
+        },
       ),
     );
   }
@@ -724,6 +767,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  // Gönderilen ve gelen bildirimleri birleştir, zamana göre sırala
+  Stream<List<TriggerLog>> _mergedLogsStream() {
+    final sentStream = _firestoreService.watchTriggerLogs();
+    final receivedStream = _firestoreService.watchReceivedAlerts();
+
+    final controller = StreamController<List<TriggerLog>>();
+    List<TriggerLog> sent = [];
+    List<TriggerLog> received = [];
+
+    void emit() {
+      final all = [...sent, ...received];
+      all.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      if (!controller.isClosed) controller.add(all);
+    }
+
+    final s1 = sentStream.listen((data) { sent = data; emit(); }, onError: controller.addError);
+    final s2 = receivedStream.listen((data) { received = data; emit(); }, onError: controller.addError);
+
+    controller.onCancel = () { s1.cancel(); s2.cancel(); };
+
+    return controller.stream;
+  }
+
   void _showHistory() {
     showModalBottomSheet(
       context: context,
@@ -762,12 +828,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             const SizedBox(height: 8),
             Expanded(
               child: StreamBuilder(
-                stream: _firestoreService.watchTriggerLogs(),
+                stream: _mergedLogsStream(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator(color: Color(0xFFE63946)));
                   }
-                  final logs = (snapshot.data ?? []).take(5).toList();
+                  final logs = (snapshot.data ?? []).take(20).toList();
                   if (logs.isEmpty) {
                     return const Center(
                       child: Text('Henüz bildirim yok', style: TextStyle(color: Colors.white38)),
@@ -811,15 +877,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   ),
                                 ),
                                 const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: log.isReceived
+                                        ? Colors.blue.withOpacity(0.2)
+                                        : Colors.white.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    log.isReceived ? 'Gelen' : 'Gönderilen',
+                                    style: TextStyle(
+                                      color: log.isReceived ? Colors.blue[300] : Colors.white54,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
                                 Text(
                                   log.formattedTime,
                                   style: const TextStyle(color: Colors.white54, fontSize: 12),
                                 ),
                                 const Spacer(),
-                                Text(
-                                  '${log.contactCount} kişi',
-                                  style: const TextStyle(color: Colors.white38, fontSize: 12),
-                                ),
+                                if (log.contactCount > 0)
+                                  Text(
+                                    '${log.contactCount} kişi',
+                                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                                  ),
                               ],
                             ),
                             if (log.hasLocation && log.mapsLink != null) ...[
@@ -867,29 +951,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A2E),
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Nasıl Kullanılır?',
-                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            _helpItem(Icons.warning_rounded, 'ACİL Butonu',
-                '3 saniye basılı tutunca GPS konumunuzla birlikte tüm acil kişilere WhatsApp mesajı gönderilir.'),
-            _helpItem(Icons.check_circle, 'GÜVENDEYİM Butonu',
-                '3 saniye basılı tutunca tüm acil kişilere güvende olduğunuz bildirilir.'),
-            _helpItem(Icons.radio_button_checked, 'AB Shutter 3 — iOS',
-                'Ses açma (+) 2 kez hızlıca bas → ACİL.\nSes kapatma (−) 2 kez hızlıca bas → GÜVENDEYİM.\nEkran kilitliyken de çalışır. Uygulama AKTİF olmalı.'),
-            _helpItem(Icons.radio_button_checked, 'AB Shutter 3 — Android',
-                'Ses açma (+) 3 saniye basılı tut → ACİL.\nSes kapatma (−) 3 saniye basılı tut → GÜVENDEYİM.\nEkran kilitliyken çalışması için Erişilebilirlik iznini ve "Her zaman izin ver" konum iznini etkinleştirin.'),
-            _helpItem(Icons.settings, 'Ayarlar',
-                'Sağ üstten acil kişi ekleyebilir, mesaj şablonunu düzenleyebilirsiniz.'),
-          ],
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (_, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Nasıl Kullanılır?',
+                  style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              _helpItem(Icons.warning_rounded, 'ACİL Butonu',
+                  '3 saniye basılı tutunca GPS konumunuzla birlikte tüm acil kişilere WhatsApp mesajı gönderilir.'),
+              _helpItem(Icons.check_circle, 'GÜVENDEYİM Butonu',
+                  '3 saniye basılı tutunca tüm acil kişilere güvende olduğunuz bildirilir.'),
+              _helpItem(Icons.radio_button_checked, 'AB Shutter 3 — iOS',
+                  'Ses açma (+) 2 kez hızlıca bas → ACİL.\nSes kapatma (−) 2 kez hızlıca bas → GÜVENDEYİM.\nEkran kilitliyken de çalışır. Uygulama AKTİF olmalı.'),
+              _helpItem(Icons.radio_button_checked, 'AB Shutter 3 — Android',
+                  'Ses açma (+) 3 saniye basılı tut → ACİL.\nSes kapatma (−) 3 saniye basılı tut → GÜVENDEYİM.\nEkran kilitliyken çalışması için Erişilebilirlik iznini ve "Her zaman izin ver" konum iznini etkinleştirin.'),
+              _helpItem(Icons.settings, 'Ayarlar',
+                  'Sağ üstten acil kişi ekleyebilir, mesaj şablonunu düzenleyebilirsiniz.'),
+              SizedBox(height: MediaQuery.of(ctx).padding.bottom + 8),
+            ],
+          ),
         ),
       ),
     );
@@ -946,6 +1038,7 @@ class _HoldButton extends StatelessWidget {
   final VoidCallback onHoldStart;
   final VoidCallback onHoldEnd;
   final VoidCallback onHoldCancel;
+  final double size;
 
   const _HoldButton({
     required this.holdController,
@@ -961,6 +1054,7 @@ class _HoldButton extends StatelessWidget {
     required this.onHoldStart,
     required this.onHoldEnd,
     required this.onHoldCancel,
+    this.size = 180,
   });
 
   @override
@@ -976,15 +1070,15 @@ class _HoldButton extends StatelessWidget {
         builder: (context, child) => Transform.scale(
           scale: isTriggering ? pulseAnimation.value : 1.0,
           child: SizedBox(
-            width: 180,
-            height: 180,
+            width: size,
+            height: size,
             child: Stack(
               alignment: Alignment.center,
               children: [
                 // Dolum halkası
                 SizedBox(
-                  width: 180,
-                  height: 180,
+                  width: size,
+                  height: size,
                   child: CircularProgressIndicator(
                     value: holdController.value,
                     strokeWidth: 7,
@@ -996,8 +1090,8 @@ class _HoldButton extends StatelessWidget {
                 ),
                 // Ana daire
                 Container(
-                  width: 164,
-                  height: 164,
+                  width: size * 0.91,
+                  height: size * 0.91,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: effectiveColor,
