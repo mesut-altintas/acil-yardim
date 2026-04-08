@@ -11,6 +11,7 @@ class TriggerLog {
   final bool hasLocation;     // Konum var mı
   final int contactCount;     // Bilgilendirilen kişi sayısı
   final bool success;         // Genel başarı durumu
+  final String type;          // 'emergency' veya 'safe'
 
   TriggerLog({
     required this.id,
@@ -20,7 +21,10 @@ class TriggerLog {
     this.hasLocation = false,
     required this.contactCount,
     this.success = true,
+    this.type = 'emergency',
   });
+
+  bool get isSafe => type == 'safe';
 
   String? get mapsLink => hasLocation && latitude != null && longitude != null
       ? 'https://maps.google.com/?q=$latitude,$longitude'
@@ -47,6 +51,7 @@ class TriggerLog {
       hasLocation: hasLoc,
       contactCount: data['contactCount'] ?? 0,
       success: data['success'] ?? true,
+      type: data['type'] as String? ?? 'emergency',
     );
   }
 

@@ -708,16 +708,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           children: [
                             Row(
                               children: [
-                                const Icon(Icons.warning_rounded, color: Color(0xFFE63946), size: 16),
+                                Icon(
+                                  log.isSafe ? Icons.check_circle : Icons.warning_rounded,
+                                  color: log.isSafe ? Colors.green : const Color(0xFFE63946),
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  log.isSafe ? 'Güvendeyim' : 'Acil Alarm',
+                                  style: TextStyle(
+                                    color: log.isSafe ? Colors.green : const Color(0xFFE63946),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
                                 const SizedBox(width: 6),
                                 Text(
                                   log.formattedTime,
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                                  style: const TextStyle(color: Colors.white54, fontSize: 12),
                                 ),
                                 const Spacer(),
                                 Text(
                                   '${log.contactCount} kişi',
-                                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                  style: const TextStyle(color: Colors.white38, fontSize: 12),
                                 ),
                               ],
                             ),

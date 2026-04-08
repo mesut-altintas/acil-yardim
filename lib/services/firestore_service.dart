@@ -138,6 +138,16 @@ class FirestoreService {
             .toList());
   }
 
+  /// Güvendeyim mesajını geçmişe kaydet
+  Future<void> logSafeMessage(int contactCount) async {
+    await _logsRef.add({
+      'type': 'safe',
+      'timestamp': FieldValue.serverTimestamp(),
+      'contactCount': contactCount,
+      'hasLocation': false,
+    });
+  }
+
   /// Son tetiklenme zamanını al
   Future<DateTime?> getLastTriggerTime() async {
     final snap = await _logsRef
