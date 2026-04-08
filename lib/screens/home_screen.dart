@@ -447,6 +447,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
           IconButton(
+            icon: const Icon(Icons.history, color: Colors.white70),
+            onPressed: _showHistory,
+            tooltip: 'Son bildirimler',
+          ),
+          IconButton(
             icon: const Icon(Icons.help_outline, color: Colors.white70),
             onPressed: _showHelp,
           ),
@@ -629,6 +634,130 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showHistory() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A2E),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.85,
+        expand: false,
+        builder: (_, scrollController) => Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Icon(Icons.history, color: Colors.white70, size: 20),
+                  SizedBox(width: 8),
+                  Text('Son Bildirimler',
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: StreamBuilder(
+                stream: _firestoreService.watchTriggerLogs(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator(color: Color(0xFFE63946)));
+                  }
+                  final logs = (snapshot.data ?? []).take(5).toList();
+                  if (logs.isEmpty) {
+                    return const Center(
+                      child: Text('Henüz bildirim yok', style: TextStyle(color: Colors.white38)),
+                    );
+                  }
+                  return ListView.builder(
+                    controller: scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: logs.length,
+                    itemBuilder: (_, i) {
+                      final log = logs[i];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.07),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFFE63946).withOpacity(0.3),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.warning_rounded, color: Color(0xFFE63946), size: 16),
+                                const SizedBox(width: 6),
+                                Text(
+                                  log.formattedTime,
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  '${log.contactCount} kişi',
+                                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                            if (log.hasLocation && log.mapsLink != null) ...[
+                              const SizedBox(height: 8),
+                              GestureDetector(
+                                onTap: () async {
+                                  final uri = Uri.parse(log.mapsLink!);
+                                  if (await canLaunchUrl(uri)) {
+                                    launchUrl(uri, mode: LaunchMode.externalApplication);
+                                  }
+                                },
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.location_on, color: Color(0xFFE63946), size: 14),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${log.latitude!.toStringAsFixed(4)}, ${log.longitude!.toStringAsFixed(4)}',
+                                      style: const TextStyle(color: Color(0xFFE63946), fontSize: 12),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Icon(Icons.open_in_new, color: Color(0xFFE63946), size: 12),
+                                  ],
+                                ),
+                              ),
+                            ] else ...[
+                              const SizedBox(height: 4),
+                              const Text('Konum alınamadı', style: TextStyle(color: Colors.white38, fontSize: 12)),
+                            ],
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            SizedBox(height: MediaQuery.of(ctx).padding.bottom + 16),
+          ],
+        ),
       ),
     );
   }

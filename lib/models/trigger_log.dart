@@ -6,25 +6,28 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class TriggerLog {
   final String id;            // Firestore belge ID'si
   final DateTime timestamp;   // Tetiklenme zamanı
-  final double latitude;      // Enlem
-  final double longitude;     // Boylam
-  final String mapsLink;      // Google Maps linki
+  final double? latitude;     // Enlem (opsiyonel)
+  final double? longitude;    // Boylam (opsiyonel)
+  final bool hasLocation;     // Konum var mı
   final int contactCount;     // Bilgilendirilen kişi sayısı
   final bool success;         // Genel başarı durumu
 
   TriggerLog({
     required this.id,
     required this.timestamp,
-    required this.latitude,
-    required this.longitude,
-    required this.mapsLink,
+    this.latitude,
+    this.longitude,
+    this.hasLocation = false,
     required this.contactCount,
     this.success = true,
   });
 
+  String? get mapsLink => hasLocation && latitude != null && longitude != null
+      ? 'https://maps.google.com/?q=$latitude,$longitude'
+      : null;
+
   /// Firestore'dan gelen Map'i modele dönüştür
   factory TriggerLog.fromFirestore(String id, Map<String, dynamic> data) {
-    // Firestore Timestamp'ini DateTime'a çevir
     DateTime ts;
     if (data['timestamp'] is Timestamp) {
       ts = (data['timestamp'] as Timestamp).toDate();
@@ -32,12 +35,16 @@ class TriggerLog {
       ts = DateTime.now();
     }
 
+    final lat = data['latitude'] != null ? (data['latitude'] as num).toDouble() : null;
+    final lng = data['longitude'] != null ? (data['longitude'] as num).toDouble() : null;
+    final hasLoc = data['hasLocation'] as bool? ?? (lat != null && lng != null);
+
     return TriggerLog(
       id: id,
       timestamp: ts,
-      latitude: (data['latitude'] ?? 0.0).toDouble(),
-      longitude: (data['longitude'] ?? 0.0).toDouble(),
-      mapsLink: data['mapsLink'] ?? '',
+      latitude: lat,
+      longitude: lng,
+      hasLocation: hasLoc,
       contactCount: data['contactCount'] ?? 0,
       success: data['success'] ?? true,
     );
