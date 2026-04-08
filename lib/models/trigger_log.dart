@@ -12,6 +12,7 @@ class TriggerLog {
   final int contactCount;     // Bilgilendirilen kişi sayısı
   final bool success;         // Genel başarı durumu
   final String type;          // 'emergency' veya 'safe'
+  final String? message;      // Gönderilen mesaj metni
 
   TriggerLog({
     required this.id,
@@ -22,6 +23,7 @@ class TriggerLog {
     required this.contactCount,
     this.success = true,
     this.type = 'emergency',
+    this.message,
   });
 
   bool get isSafe => type == 'safe';
@@ -52,6 +54,7 @@ class TriggerLog {
       contactCount: data['contactCount'] ?? 0,
       success: data['success'] ?? true,
       type: data['type'] as String? ?? 'emergency',
+      message: data['message'] as String?,
     );
   }
 

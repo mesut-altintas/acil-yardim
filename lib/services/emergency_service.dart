@@ -323,10 +323,11 @@ class EmergencyService {
       final settings = await _firestoreService.getSettings();
       final callerName = settings['callerName'] ?? 'Kullanıcı';
       final safeMsg = settings['safeMessage'] ?? '✅ $callerName güvende. Endişelenmeyin.';
-      await _sendSmsFromDevice(contacts, '$safeMsg\n— $callerName');
+      final fullSafeMsg = '$safeMsg\n— $callerName';
+      await _sendSmsFromDevice(contacts, fullSafeMsg);
 
       // Firestore'a log kaydet
-      await _firestoreService.logSafeMessage(contacts.length);
+      await _firestoreService.logSafeMessage(contacts.length, fullSafeMsg);
 
       return true;
     } catch (e) {

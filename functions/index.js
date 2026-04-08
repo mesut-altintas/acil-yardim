@@ -136,10 +136,12 @@ exports.triggerEmergency = onCall(async (request) => {
   // (Aramalar artık Flutter tarafında cihazdan yapılıyor)
   const callResults = [];
   await userRef.collection("triggerLogs").add({
+    type: "emergency",
     timestamp: admin.firestore.FieldValue.serverTimestamp(),
     latitude: latitude ?? null,
     longitude: longitude ?? null,
     hasLocation,
+    message: fullMessage,
     notificationResults,
     callResults,
     contactCount: contacts.length,

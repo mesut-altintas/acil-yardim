@@ -638,6 +638,92 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  void _showLogDetail(BuildContext sheetCtx, log) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(
+              log.isSafe ? Icons.check_circle : Icons.warning_rounded,
+              color: log.isSafe ? Colors.green : const Color(0xFFE63946),
+              size: 22,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              log.isSafe ? 'Güvendeyim' : 'Acil Alarm',
+              style: TextStyle(
+                color: log.isSafe ? Colors.green : const Color(0xFFE63946),
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.access_time, color: Colors.white38, size: 14),
+                const SizedBox(width: 6),
+                Text(log.formattedTime, style: const TextStyle(color: Colors.white54, fontSize: 13)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.group, color: Colors.white38, size: 14),
+                const SizedBox(width: 6),
+                Text('${log.contactCount} kişi bilgilendirildi', style: const TextStyle(color: Colors.white54, fontSize: 13)),
+              ],
+            ),
+            if (log.message != null) ...[
+              const SizedBox(height: 12),
+              const Text('Gönderilen mesaj:', style: TextStyle(color: Colors.white38, fontSize: 12)),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(log.message!, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+              ),
+            ],
+            if (log.hasLocation && log.mapsLink != null) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final uri = Uri.parse(log.mapsLink!);
+                    if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+                  },
+                  icon: const Icon(Icons.map, size: 16),
+                  label: const Text('Haritada Aç'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFE63946),
+                    side: const BorderSide(color: Color(0xFFE63946)),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Kapat', style: TextStyle(color: Colors.white38)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showHistory() {
     showModalBottomSheet(
       context: context,
@@ -693,7 +779,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     itemCount: logs.length,
                     itemBuilder: (_, i) {
                       final log = logs[i];
-                      return Container(
+                      return GestureDetector(
+                        onTap: () => _showLogDetail(ctx, log),
+                        child: Container(
                         margin: const EdgeInsets.only(bottom: 10),
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
@@ -762,7 +850,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             ],
                           ],
                         ),
-                      );
+                      ));
                     },
                   );
                 },
