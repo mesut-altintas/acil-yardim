@@ -94,10 +94,11 @@ exports.triggerEmergency = onCall(async (request) => {
             },
             android: {
               priority: "high",
-              notification: { channelId: "emergency_channel", sound: "alarm" },
+              notification: { channelId: "emergency_channel", sound: "default" },
             },
             apns: {
-              payload: { aps: { sound: "alarm.caf", badge: 1 } },
+              payload: { aps: { sound: "default", badge: 1 } },
+              headers: { "apns-priority": "10" },
             },
           });
           console.log(`FCM bildirimi gönderildi: ${contact.name}`);
@@ -182,17 +183,57 @@ exports.sendSafeMessage = onCall(async (request) => {
   const contacts = contactsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
   const results = await Promise.allSettled(
-    contacts
-      .filter((c) => c.channels && c.channels.includes("whatsapp"))
-      .map(async (contact) => {
-        await twilioClient.messages.create({
-          body: safeMessage,
-          from: process.env.TWILIO_WHATSAPP,
-          to: `whatsapp:${contact.phone}`,
-        });
-        console.log(`Güvendeyim mesajı gönderildi: ${contact.name}`);
-        return { contactId: contact.id, success: true };
-      })
+    contacts.map(async (contact) => {
+      const errors = [];
+
+      // FCM bildirimi
+      if (contact.channels && contact.channels.includes("notification")) {
+        try {
+          let fcmToken = contact.fcmToken || null;
+          if (!fcmToken && contact.phone) {
+            const registryDoc = await admin.firestore()
+              .collection("phoneRegistry").doc(contact.phone).get();
+            if (registryDoc.exists) fcmToken = registryDoc.data().fcmToken;
+          }
+          if (fcmToken) {
+            await admin.messaging().send({
+              token: fcmToken,
+              notification: { title: "✅ GÜVENDEYİM", body: safeMessage },
+              data: { type: "safe", userId },
+              android: {
+                priority: "high",
+                notification: { channelId: "emergency_channel", sound: "default" },
+              },
+              apns: {
+                payload: { aps: { sound: "default", badge: 0 } },
+                headers: { "apns-priority": "10" },
+              },
+            });
+            console.log(`Güvendeyim FCM gönderildi: ${contact.name}`);
+          }
+        } catch (err) {
+          console.error(`Güvendeyim FCM hatası (${contact.name}):`, err.message);
+          errors.push({ type: "fcm", error: err.message });
+        }
+      }
+
+      // WhatsApp
+      if (contact.channels && contact.channels.includes("whatsapp")) {
+        try {
+          await twilioClient.messages.create({
+            body: safeMessage,
+            from: process.env.TWILIO_WHATSAPP,
+            to: `whatsapp:${contact.phone}`,
+          });
+          console.log(`Güvendeyim WhatsApp gönderildi: ${contact.name}`);
+        } catch (err) {
+          console.error(`Güvendeyim WhatsApp hatası (${contact.name}):`, err.message);
+          errors.push({ type: "whatsapp", error: err.message });
+        }
+      }
+
+      return { contactId: contact.id, errors };
+    })
   );
 
   return { success: true, results };

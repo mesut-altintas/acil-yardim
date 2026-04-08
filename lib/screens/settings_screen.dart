@@ -336,6 +336,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _editPhone(EmergencyContact contact) async {
+    final controller = TextEditingController(text: contact.phone);
+    final newPhone = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${contact.name} — Numara'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.phone,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: '+905xxxxxxxxx',
+            helperText: 'E.164 formatında girin (+90 ile başlayan)',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('İptal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    );
+
+    if (newPhone != null && newPhone.isNotEmpty && newPhone != contact.phone) {
+      await _firestoreService.updateContact(contact.copyWith(phone: newPhone));
+    }
+  }
+
   // ─────────────────────────────────────────────
   // Twilio Sandbox aktivasyon linkini aç
   // ─────────────────────────────────────────────
@@ -501,6 +534,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 key: ValueKey(contact.id),
                 contact: contact,
                 onEditChannels: () => _editChannels(contact),
+                onEditPhone: () => _editPhone(contact),
                 onDelete: () => _deleteContact(contact),
               );
             },
@@ -756,12 +790,14 @@ class _ChannelCheckTile extends StatelessWidget {
 class _ContactEditTile extends StatelessWidget {
   final EmergencyContact contact;
   final VoidCallback onEditChannels;
+  final VoidCallback onEditPhone;
   final VoidCallback onDelete;
 
   const _ContactEditTile({
     super.key,
     required this.contact,
     required this.onEditChannels,
+    required this.onEditPhone,
     required this.onDelete,
   });
 
@@ -795,7 +831,7 @@ class _ContactEditTile extends StatelessWidget {
           ),
           const SizedBox(width: 10),
 
-          // İsim ve kanallar
+          // İsim, telefon ve kanallar
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -806,6 +842,11 @@ class _ContactEditTile extends StatelessWidget {
                     color: Colors.white,
                     fontWeight: FontWeight.w500,
                   ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  contact.phone,
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
                 ),
                 const SizedBox(height: 4),
                 // Kanal chipleri
@@ -826,7 +867,14 @@ class _ContactEditTile extends StatelessWidget {
             ),
           ),
 
-          // Düzenle butonu
+          // Telefon düzenleme butonu
+          IconButton(
+            icon: const Icon(Icons.phone, color: Colors.white38, size: 20),
+            onPressed: onEditPhone,
+            tooltip: 'Numarayı düzenle',
+          ),
+
+          // Kanal düzenleme butonu
           IconButton(
             icon: const Icon(Icons.edit, color: Colors.white54, size: 20),
             onPressed: onEditChannels,

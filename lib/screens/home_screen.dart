@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/bluetooth_trigger_service.dart';
 import '../services/emergency_service.dart';
 import '../services/firestore_service.dart';
@@ -57,6 +58,94 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _checkAccessibility();
     _requestBackgroundLocation();
     _registerFcmToken();
+    _handleInitialNotification();
+  }
+
+  // Uygulama kapalıyken bildirime tıklanınca açılma
+  Future<void> _handleInitialNotification() async {
+    final message = await FirebaseMessaging.instance.getInitialMessage();
+    if (message != null && mounted) {
+      // Kısa gecikme — widget tam yerleşsin
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) _showNotificationSheet(message);
+    }
+  }
+
+  void _showNotificationSheet(RemoteMessage message) {
+    final data = message.data;
+    final type = data['type'] ?? 'emergency';
+    final isSafe = type == 'safe';
+    final title = message.notification?.title ?? (isSafe ? '✅ GÜVENDEYİM' : '🚨 ACİL YARDIM');
+    final body = message.notification?.body ?? '';
+    final lat = double.tryParse(data['latitude'] ?? '');
+    final lng = double.tryParse(data['longitude'] ?? '');
+    final hasLocation = lat != null && lng != null;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A2E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  isSafe ? Icons.check_circle : Icons.warning_rounded,
+                  color: isSafe ? Colors.green : const Color(0xFFE63946),
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: isSafe ? Colors.green : const Color(0xFFE63946),
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              body,
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
+            ),
+            if (hasLocation) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    final uri = Uri.parse('https://maps.google.com/?q=$lat,$lng');
+                    if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+                  },
+                  icon: const Icon(Icons.map),
+                  label: const Text('Haritada Aç'),
+                  style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE63946)),
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Kapat', style: TextStyle(color: Colors.white38)),
+              ),
+            ),
+            SizedBox(height: MediaQuery.of(context).padding.bottom),
+          ],
+        ),
+      ),
+    );
   }
 
   // FCM token'ı uygulama her açıldığında phoneRegistry'ye yaz
@@ -196,18 +285,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
     });
 
-    // Uygulama ön plandayken gelen FCM mesajlarını göster
+    // Ön planda gelen FCM — bottom sheet göster
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (!mounted) return;
-      final title = message.notification?.title ?? '🚨 ACİL YARDIM';
-      final body = message.notification?.body ?? '';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$title\n$body'),
-          backgroundColor: const Color(0xFFE63946),
-          duration: const Duration(seconds: 6),
-        ),
-      );
+      _showNotificationSheet(message);
+    });
+
+    // Arka planda bildirime tıklanınca
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      if (!mounted) return;
+      _showNotificationSheet(message);
     });
 
     // AB Shutter hold tetiklemelerini dinle

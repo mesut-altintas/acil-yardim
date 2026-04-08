@@ -312,11 +312,19 @@ class _LoginScreenState extends State<_LoginScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A2E),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height -
+                  MediaQuery.of(context).padding.top -
+                  MediaQuery.of(context).padding.bottom -
+                  64,
+            ),
+            child: IntrinsicHeight(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
               // Logo / İkon
               Container(
                 width: 120,
@@ -474,6 +482,8 @@ class _LoginScreenState extends State<_LoginScreen> {
                 textAlign: TextAlign.center,
               ),
             ],
+              ),
+            ),
           ),
         ),
       ),
