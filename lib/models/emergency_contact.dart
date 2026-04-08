@@ -5,6 +5,7 @@ enum ContactChannel {
   notification, // FCM push bildirimi
   whatsapp,     // Twilio WhatsApp mesajı
   call,         // Twilio sesli arama
+  sms,          // Cihazdan SMS (yalnızca Android)
 }
 
 /// Tek bir acil kişiyi temsil eden model

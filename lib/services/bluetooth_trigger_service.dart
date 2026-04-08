@@ -6,9 +6,10 @@
 //   Ses kapatma (−) 2x kısa sürede bas → GÜVENDEYİM
 //   Pencere: 2 saniye
 //
-// Android davranışı (KeyDown/Up mevcut, hold tespit edilebilir):
+// Android davranışı (ContentObserver sürekli event üretir, hold tespit edilebilir):
 //   Ses açma (+) 3 saniye basılı tut → ACİL
-//   Ses kapatma (−) 2 saniye basılı tut → GÜVENDEYİM
+//   Ses kapatma (−) 3 saniye basılı tut → GÜVENDEYİM
+//   Tetiklemeden sonra 30 sn cooldown (yanlışlık önleme)
 
 import 'dart:async';
 import 'dart:io';
@@ -23,13 +24,12 @@ class BluetoothTriggerService {
   static const EventChannel _volumeChannel =
       EventChannel('com.acilyardim/volume_button');
 
-  // iOS: çift basış penceresi (ms)
+  // ── iOS: çift basış ──
   static const int _doublePressWindowMs = 2000;
 
-  // Android: hold eşikleri (ms)
-  static const int _emergencyHoldMs = 3000;
-  static const int _safeHoldMs = 3000;
-  static const int _releaseTimeoutMs = 600;
+  // ── Android: basılı tut ──
+  static const int _holdMs = 3000;       // tetikleme eşiği
+  static const int _releaseTimeoutMs = 2500; // bu kadar sessizlik = bırakıldı
 
   // iOS çift basış durumu
   DateTime? _lastUpPress;
@@ -58,7 +58,6 @@ class BluetoothTriggerService {
     if (_isListening) return;
 
     if (Platform.isIOS) {
-      // iOS: AVAudioSession volume observer (native)
       _volumeSubscription =
           _volumeChannel.receiveBroadcastStream().listen((event) {
         if (event == 'volume_up') {
@@ -68,16 +67,15 @@ class BluetoothTriggerService {
         }
       });
     } else {
-      // Android: ContentObserver volume channel (native) + HardwareKeyboard fallback
+      // Android: ContentObserver hold tespiti
       _volumeSubscription =
           _volumeChannel.receiveBroadcastStream().listen((event) {
         if (event == 'volume_up') {
-          _onIosVolumeUp(); // iOS ile aynı çift basış mantığı
+          _onAndroidVolumeUp();
         } else if (event == 'volume_down') {
-          _onIosVolumeDown();
+          _onAndroidVolumeDown();
         }
       });
-      HardwareKeyboard.instance.addHandler(_onKeyEvent);
     }
 
     _isListening = true;
@@ -86,9 +84,6 @@ class BluetoothTriggerService {
   Future<void> stop() async {
     await _volumeSubscription?.cancel();
     _volumeSubscription = null;
-    if (!Platform.isIOS) {
-      HardwareKeyboard.instance.removeHandler(_onKeyEvent);
-    }
     _resetAndroidUpHold();
     _resetAndroidDownHold();
     _lastUpPress = null;
@@ -122,7 +117,7 @@ class BluetoothTriggerService {
     }
   }
 
-  // ── Android: hold detection ──
+  // ── Android: ses açma basılı tut → ACİL ──
   void _onAndroidVolumeUp() {
     _connectionController.add(true);
     _upReleaseTimer?.cancel();
@@ -132,17 +127,19 @@ class BluetoothTriggerService {
     _upHoldStart ??= now;
 
     final held = now.difference(_upHoldStart!).inMilliseconds;
-    if (held >= _emergencyHoldMs) {
+    if (held >= _holdMs) {
       _resetAndroidUpHold();
       _triggerController.add('emergency');
       return;
     }
 
+    // Bırakıldı mı kontrol et
     _upReleaseTimer = Timer(Duration(milliseconds: _releaseTimeoutMs), () {
       _upHoldStart = null;
     });
   }
 
+  // ── Android: ses kapatma basılı tut → GÜVENDEYİM ──
   void _onAndroidVolumeDown() {
     _connectionController.add(true);
     _downReleaseTimer?.cancel();
@@ -152,7 +149,7 @@ class BluetoothTriggerService {
     _downHoldStart ??= now;
 
     final held = now.difference(_downHoldStart!).inMilliseconds;
-    if (held >= _safeHoldMs) {
+    if (held >= _holdMs) {
       _resetAndroidDownHold();
       _triggerController.add('safe');
       return;
@@ -173,27 +170,6 @@ class BluetoothTriggerService {
     _downReleaseTimer?.cancel();
     _downReleaseTimer = null;
     _downHoldStart = null;
-  }
-
-  bool _onKeyEvent(KeyEvent event) {
-    final isVolumeUp =
-        event.logicalKey == LogicalKeyboardKey.audioVolumeUp ||
-        event.physicalKey == PhysicalKeyboardKey.audioVolumeUp;
-    final isVolumeDown =
-        event.logicalKey == LogicalKeyboardKey.audioVolumeDown ||
-        event.physicalKey == PhysicalKeyboardKey.audioVolumeDown;
-
-    if (!isVolumeUp && !isVolumeDown) return false;
-
-    if (event is KeyDownEvent || event is KeyRepeatEvent) {
-      if (isVolumeUp) _onAndroidVolumeUp();
-      if (isVolumeDown) _onAndroidVolumeDown();
-    } else if (event is KeyUpEvent) {
-      if (isVolumeUp) _resetAndroidUpHold();
-      if (isVolumeDown) _resetAndroidDownHold();
-    }
-
-    return true;
   }
 
   void dispose() {

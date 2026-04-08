@@ -214,6 +214,35 @@ class _LoginScreenState extends State<_LoginScreen> {
     }
   }
 
+  Future<void> _resetPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      setState(() => _errorMessage = 'E-posta adresini girin.');
+      return;
+    }
+    setState(() { _isLoading = true; _errorMessage = null; });
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Şifre sıfırlama linki e-postanıza gönderildi.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) setState(() {
+        _errorMessage = e.code == 'user-not-found'
+            ? 'Bu e-posta ile kayıtlı hesap bulunamadı.'
+            : e.message ?? 'Şifre sıfırlama başarısız.';
+        _isLoading = false;
+      });
+    }
+  }
+
   // Email ile giriş/kayıt
   Future<void> _signInWithEmail() async {
     setState(() { _isLoading = true; _errorMessage = null; });
@@ -389,6 +418,11 @@ class _LoginScreenState extends State<_LoginScreen> {
                   onPressed: () => setState(() => _isRegister = !_isRegister),
                   child: Text(_isRegister ? 'Zaten hesabım var' : 'Yeni hesap oluştur', style: const TextStyle(color: Colors.white54)),
                 ),
+                if (!_isRegister)
+                  TextButton(
+                    onPressed: _isLoading ? null : _resetPassword,
+                    child: const Text('Şifremi Unuttum', style: TextStyle(color: Colors.white38)),
+                  ),
                 TextButton(
                   onPressed: () => setState(() => _showEmailForm = false),
                   child: const Text('Geri', style: TextStyle(color: Colors.white38)),

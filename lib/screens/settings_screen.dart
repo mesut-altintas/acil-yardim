@@ -1,6 +1,7 @@
 // Ayarlar ekranı
 // Acil kişi yönetimi, mesaj şablonu, Twilio sandbox aktivasyonu, hesap
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -652,7 +653,12 @@ class _ChannelPickerDialogState extends State<_ChannelPickerDialog> {
     _selected = List.from(widget.initialChannels);
   }
 
-  void _toggle(ContactChannel channel) {
+  void _toggle(ContactChannel channel) async {
+    // SMS seçilirken izin iste
+    if (channel == ContactChannel.sms && !_selected.contains(channel)) {
+      final status = await Permission.sms.request();
+      if (!status.isGranted) return;
+    }
     setState(() {
       if (_selected.contains(channel)) {
         _selected.remove(channel);
@@ -690,6 +696,14 @@ class _ChannelPickerDialogState extends State<_ChannelPickerDialog> {
             value: _selected.contains(ContactChannel.call),
             onChanged: (_) => _toggle(ContactChannel.call),
           ),
+          if (Platform.isAndroid)
+            _ChannelCheckTile(
+              icon: Icons.sms,
+              label: 'SMS',
+              sublabel: 'Cihazdan doğrudan SMS (internet gerektirmez)',
+              value: _selected.contains(ContactChannel.sms),
+              onChanged: (_) => _toggle(ContactChannel.sms),
+            ),
         ],
       ),
       actions: [
@@ -804,6 +818,8 @@ class _ContactEditTile extends StatelessWidget {
                       _ChannelChip(label: 'WA', color: const Color(0xFF25D366)),
                     if (contact.hasChannel(ContactChannel.call))
                       _ChannelChip(label: 'Arama', color: Colors.orange),
+                    if (contact.hasChannel(ContactChannel.sms))
+                      _ChannelChip(label: 'SMS', color: Colors.purple),
                   ],
                 ),
               ],

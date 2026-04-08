@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/bluetooth_trigger_service.dart';
 import '../services/emergency_service.dart';
 import '../services/firestore_service.dart';
@@ -20,6 +23,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   bool _isActive = true;
   TriggerStatus _triggerStatus = TriggerStatus.idle;
+
+  // Erişilebilirlik servisi durumu (Android)
+  bool _accessibilityEnabled = true;
+  static const _accessibilityChannel = MethodChannel('com.acilyardim/accessibility');
 
   // Güvendeyim durumu
   bool _isSafeSending = false;
@@ -47,6 +54,105 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _initAnimations();
     _initSubscriptions();
     _btService.start();
+    _checkAccessibility();
+    _requestBackgroundLocation();
+    _registerFcmToken();
+  }
+
+  // FCM token'ı uygulama her açıldığında phoneRegistry'ye yaz
+  Future<void> _registerFcmToken() async {
+    try {
+      await FirebaseMessaging.instance.requestPermission(alert: true, badge: true, sound: true);
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token == null) return;
+      final settings = await _firestoreService.getSettings();
+      final myPhone = settings['myPhone'] as String? ?? '';
+      print('[HomeScreen] FCM myPhone: "$myPhone"');
+      if (myPhone.isNotEmpty) {
+        await _firestoreService.registerPhoneWithFcmToken(myPhone, token);
+        print('[HomeScreen] FCM token kaydedildi: $myPhone → ${token.substring(0, 15)}...');
+      } else {
+        print('[HomeScreen] FCM kaydı atlandı: myPhone boş');
+      }
+    } catch (e) {
+      print('[HomeScreen] FCM token kayıt hatası: $e');
+    }
+    // Token yenilenince de güncelle
+    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+      try {
+        final settings = await _firestoreService.getSettings();
+        final myPhone = settings['myPhone'] as String? ?? '';
+        if (myPhone.isNotEmpty) {
+          await _firestoreService.registerPhoneWithFcmToken(myPhone, newToken);
+          print('[HomeScreen] FCM token yenilendi');
+        }
+      } catch (_) {}
+    });
+  }
+
+  Future<void> _requestBackgroundLocation() async {
+    try {
+      // Önce ön plan iznini al
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      // Sonra arka plan iznini iste ("Her zaman izin ver")
+      // Android 11+: tekrar requestPermission gerekir
+      // iOS: aynı API "Always Allow" seçeneğini sunar
+      if (perm == LocationPermission.whileInUse) {
+        await Geolocator.requestPermission();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _checkAccessibility() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final enabled = await _accessibilityChannel.invokeMethod<bool>('isEnabled') ?? false;
+      if (!mounted) return;
+      setState(() => _accessibilityEnabled = enabled);
+      // Sadece ilk açılışta ve etkin değilse sor
+      if (!enabled && !_accessibilityDialogShown) {
+        _accessibilityDialogShown = true;
+        _showAccessibilityDialog();
+      }
+    } catch (_) {}
+  }
+
+  bool _accessibilityDialogShown = false;
+
+  void _showAccessibilityDialog() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A2E),
+          title: const Text('Kilitli Ekran Desteği', style: TextStyle(color: Colors.white)),
+          content: const Text(
+            'AB Shutter\'ın kilitli ekranda çalışması için Erişilebilirlik iznini etkinleştirmeniz gerekiyor.\n\n'
+            'Ayarlar → Erişilebilirlik → Yüklü uygulamalar → AcilYardım Ses Tuşu → Aç',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Sonra', style: TextStyle(color: Colors.white38)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _accessibilityChannel.invokeMethod('openSettings');
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE63946)),
+              child: const Text('Ayarları Aç', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   void _initAnimations() {
@@ -88,6 +194,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _pulseController.reset();
         }
       }
+    });
+
+    // Uygulama ön plandayken gelen FCM mesajlarını göster
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      if (!mounted) return;
+      final title = message.notification?.title ?? '🚨 ACİL YARDIM';
+      final body = message.notification?.body ?? '';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$title\n$body'),
+          backgroundColor: const Color(0xFFE63946),
+          duration: const Duration(seconds: 6),
+        ),
+      );
     });
 
     // AB Shutter hold tetiklemelerini dinle
@@ -446,8 +566,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 '3 saniye basılı tutunca GPS konumunuzla birlikte tüm acil kişilere WhatsApp mesajı gönderilir.'),
             _helpItem(Icons.check_circle, 'GÜVENDEYİM Butonu',
                 '3 saniye basılı tutunca tüm acil kişilere güvende olduğunuz bildirilir.'),
-            _helpItem(Icons.radio_button_checked, 'AB Shutter 3',
-                'Ses açma (+) 2 kez bas → ACİL. Ses kapatma (−) 2 kez bas → GÜVENDEYİM. (Android: 3 sn / 2 sn basılı tut). Uygulama açık ve AKTİF olmalı.'),
+            _helpItem(Icons.radio_button_checked, 'AB Shutter 3 — iOS',
+                'Ses açma (+) 2 kez hızlıca bas → ACİL.\nSes kapatma (−) 2 kez hızlıca bas → GÜVENDEYİM.\nEkran kilitliyken de çalışır. Uygulama AKTİF olmalı.'),
+            _helpItem(Icons.radio_button_checked, 'AB Shutter 3 — Android',
+                'Ses açma (+) 3 saniye basılı tut → ACİL.\nSes kapatma (−) 3 saniye basılı tut → GÜVENDEYİM.\nEkran kilitliyken çalışması için Erişilebilirlik iznini ve "Her zaman izin ver" konum iznini etkinleştirin.'),
             _helpItem(Icons.settings, 'Ayarlar',
                 'Sağ üstten acil kişi ekleyebilir, mesaj şablonunu düzenleyebilirsiniz.'),
           ],

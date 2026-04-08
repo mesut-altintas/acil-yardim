@@ -2,11 +2,20 @@
 // GPS konumu alır, Cloud Function'ı çağırır, hata durumunda yedek arama yapar
 
 import 'dart:async';
+import 'dart:io';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../models/emergency_contact.dart';
 import 'firestore_service.dart';
+
+// SMS kanalı için Android MethodChannel
+const _smsChannel = MethodChannel('com.acilyardim/sms');
+
+// Otomatik arama için Android MethodChannel
+const _callChannel = MethodChannel('com.acilyardim/call');
 
 /// Tetikleme durumunu UI'a bildirmek için enum
 enum TriggerStatus {
@@ -62,9 +71,17 @@ class EmergencyService {
     _setStatus(TriggerStatus.gettingGps);
 
     try {
-      // ── 1. GPS konumunu al ──
-      final position = await _getLocation();
-      print('[EmergencyService] GPS alındı: ${position.latitude}, ${position.longitude}');
+      // ── 1. GPS konumunu al (başarısız olsa devam et) ──
+      double? latitude;
+      double? longitude;
+      try {
+        final position = await _getLocation();
+        latitude = position.latitude;
+        longitude = position.longitude;
+        print('[EmergencyService] GPS alındı: $latitude, $longitude');
+      } catch (e) {
+        print('[EmergencyService] GPS alınamadı, konumsuz devam: $e');
+      }
 
       _setStatus(TriggerStatus.calling);
 
@@ -79,11 +96,13 @@ class EmergencyService {
         final callable = FirebaseFunctions.instance
             .httpsCallable('triggerEmergency');
 
-        final result = await callable.call({
-          'userId': userId,
-          'latitude': position.latitude,
-          'longitude': position.longitude,
-        });
+        final payload = <String, dynamic>{'userId': userId};
+        if (latitude != null && longitude != null) {
+          payload['latitude'] = latitude;
+          payload['longitude'] = longitude;
+        }
+
+        final result = await callable.call(payload);
 
         final data = Map<String, dynamic>.from(result.data as Map);
         final notifResults = data['notificationResults'] as List? ?? [];
@@ -114,6 +133,16 @@ class EmergencyService {
 
         print('[EmergencyService] Gönderim: $successCount/${contacts.length} başarılı');
         _setStatus(TriggerStatus.success);
+
+        // SMS kanalı: cihazdan gönder (Android only)
+        final settings = await _firestoreService.getSettings();
+        final callerName = settings['callerName'] ?? 'Kullanıcı';
+        final msgText = settings['message'] ?? '🚨 ACİL YARDIM';
+        final locationText = latitude != null && longitude != null
+            ? '\n📍 Konum: https://maps.google.com/?q=$latitude,$longitude'
+            : '';
+        final smsMessage = '$msgText$locationText\n— $callerName';
+        await _sendSmsFromDevice(contacts, smsMessage);
 
         // Arama kanalı seçili kişileri cihazdan ara
         await _callContactsFromDevice(userId);
@@ -167,11 +196,22 @@ class EmergencyService {
       throw GeolocatorError('Konum izni kalıcı olarak reddedildi');
     }
 
-    // Konumu al — yüksek doğruluk, max 10sn timeout
-    return await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-      timeLimit: const Duration(seconds: 6),
-    );
+    // Kilitli ekranda arka plan konumu gerekir
+    // "Her zaman izin ver" yoksa son bilinen konumu dene
+    try {
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 6),
+      );
+    } catch (_) {
+      // Son bilinen konuma düş (cache, kilitli ekranda çalışır)
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null) {
+        print('[EmergencyService] getCurrentPosition başarısız, son bilinen konum kullanılıyor');
+        return last;
+      }
+      rethrow;
+    }
   }
 
   // ─────────────────────────────────────────────
@@ -186,15 +226,45 @@ class EmergencyService {
 
       for (final contact in callContacts) {
         print('[EmergencyService] Arama başlatılıyor: ${contact.name} (${contact.phone})');
-        final telUri = Uri.parse('tel:${contact.phone}');
-        if (await canLaunchUrl(telUri)) await launchUrl(telUri);
-        // Bir sonraki kişiyi aramadan önce kısa bekle
+        if (Platform.isAndroid) {
+          // Android: ACTION_CALL ile direkt arama (onay gerektirmez)
+          try {
+            await _callChannel.invokeMethod('dial', {'phone': contact.phone});
+          } catch (e) {
+            // Yetki yoksa dialer'a düş
+            final telUri = Uri.parse('tel:${contact.phone}');
+            if (await canLaunchUrl(telUri)) await launchUrl(telUri);
+          }
+        } else {
+          // iOS: dialer aç (otomatik arama iOS'ta mümkün değil)
+          final telUri = Uri.parse('tel:${contact.phone}');
+          if (await canLaunchUrl(telUri)) await launchUrl(telUri);
+        }
         if (callContacts.indexOf(contact) < callContacts.length - 1) {
           await Future.delayed(const Duration(seconds: 15));
         }
       }
     } catch (e) {
       print('[EmergencyService] Cihaz araması hatası: $e');
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // SMS gönder — cihazdan, yalnızca Android
+  // ─────────────────────────────────────────────
+  Future<void> _sendSmsFromDevice(List<EmergencyContact> contacts, String message) async {
+    if (!Platform.isAndroid) return;
+    final smsContacts = contacts.where((c) => c.hasChannel(ContactChannel.sms)).toList();
+    for (final contact in smsContacts) {
+      try {
+        await _smsChannel.invokeMethod('send', {
+          'phone': contact.phone,
+          'message': message,
+        });
+        print('[EmergencyService] SMS gönderildi: ${contact.name}');
+      } catch (e) {
+        print('[EmergencyService] SMS hatası (${contact.name}): $e');
+      }
     }
   }
 
@@ -247,6 +317,14 @@ class EmergencyService {
       final callable = FirebaseFunctions.instance.httpsCallable('sendSafeMessage');
       await callable.call({'userId': userId});
       print('[EmergencyService] Güvendeyim mesajı gönderildi');
+
+      // SMS kanalı: cihazdan gönder (Android only)
+      final contacts = await _firestoreService.getContacts();
+      final settings = await _firestoreService.getSettings();
+      final callerName = settings['callerName'] ?? 'Kullanıcı';
+      final safeMsg = settings['safeMessage'] ?? '✅ $callerName güvende. Endişelenmeyin.';
+      await _sendSmsFromDevice(contacts, '$safeMsg\n— $callerName');
+
       return true;
     } catch (e) {
       print('[EmergencyService] Güvendeyim hatası: $e');

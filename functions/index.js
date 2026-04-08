@@ -24,8 +24,8 @@ exports.triggerEmergency = onCall(async (request) => {
   const { userId, latitude, longitude } = request.data;
 
   // Gelen veriler geçerli mi kontrol et
-  if (!userId || latitude === undefined || longitude === undefined) {
-    throw new HttpsError("invalid-argument", "userId, latitude ve longitude zorunludur.");
+  if (!userId) {
+    throw new HttpsError("invalid-argument", "userId zorunludur.");
   }
 
   // Firestore referansları
@@ -49,10 +49,13 @@ exports.triggerEmergency = onCall(async (request) => {
     return { success: false, reason: "Uygulama pasif durumda." };
   }
 
-  // Google Maps linki oluştur
+  // Google Maps linki oluştur (konum varsa)
   const callerName = settings.callerName || "Kullanıcı";
-  const mapsLink = `https://maps.google.com/?q=${latitude},${longitude}`;
-  const fullMessage = `🚨 ${settings.message}\n📍 Konum: ${mapsLink}\n— ${callerName}`;
+  const hasLocation = latitude !== undefined && longitude !== undefined;
+  const locationText = hasLocation
+    ? `\n📍 Konum: https://maps.google.com/?q=${latitude},${longitude}`
+    : "";
+  const fullMessage = `🚨 ${settings.message}${locationText}\n— ${callerName}`;
 
   // Twilio istemcisi — .env dosyasından process.env ile oku
   const twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
@@ -133,9 +136,9 @@ exports.triggerEmergency = onCall(async (request) => {
   const callResults = [];
   await userRef.collection("triggerLogs").add({
     timestamp: admin.firestore.FieldValue.serverTimestamp(),
-    latitude,
-    longitude,
-    mapsLink,
+    latitude: latitude ?? null,
+    longitude: longitude ?? null,
+    hasLocation,
     notificationResults,
     callResults,
     contactCount: contacts.length,
