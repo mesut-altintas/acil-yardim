@@ -11,6 +11,29 @@ admin.initializeApp();
 // Tüm fonksiyonlar için varsayılan bölge ve timeout ayarla
 setGlobalOptions({ region: "us-central1", timeoutSeconds: 120, memory: "256MiB" });
 
+// Telefon numarasını E.164 formatına normalize et (+905XXXXXXXXX)
+function normalizePhone(phone) {
+  if (!phone) return null;
+  let p = phone.replace(/[\s\-\(\)]/g, "");
+  if (!p.startsWith("+")) {
+    p = p.startsWith("0") ? "+9" + p : "+90" + p;
+  }
+  return p;
+}
+
+// phoneRegistry'den FCM token bul (normalize ederek)
+async function getFcmToken(phone) {
+  const normalized = normalizePhone(phone);
+  if (!normalized) return null;
+  const doc = await admin.firestore().collection("phoneRegistry").doc(normalized).get();
+  if (doc.exists) {
+    console.log(`FCM token bulundu: ${normalized}`);
+    return doc.data().fcmToken;
+  }
+  console.log(`FCM token bulunamadı: ${normalized} (orijinal: ${phone})`);
+  return null;
+}
+
 // ─────────────────────────────────────────────────────────────
 // Ana acil yardım tetikleme fonksiyonu
 // Flutter uygulaması bu callable function'ı çağırır
@@ -72,15 +95,8 @@ exports.triggerEmergency = onCall(async (request) => {
     // Firebase Cloud Messaging bildirimi gönder
     if (contact.channels && contact.channels.includes("notification")) {
       try {
-        // phoneRegistry'den FCM token ara
-        let fcmToken = contact.fcmToken || null;
-        if (!fcmToken && contact.phone) {
-          const registryDoc = await admin.firestore()
-            .collection("phoneRegistry").doc(contact.phone).get();
-          if (registryDoc.exists) {
-            fcmToken = registryDoc.data().fcmToken;
-          }
-        }
+        // phoneRegistry'den FCM token ara (normalize ederek)
+        const fcmToken = await getFcmToken(contact.phone);
 
         if (fcmToken) {
           await admin.messaging().send({
@@ -191,12 +207,7 @@ exports.sendSafeMessage = onCall(async (request) => {
       // FCM bildirimi
       if (contact.channels && contact.channels.includes("notification")) {
         try {
-          let fcmToken = contact.fcmToken || null;
-          if (!fcmToken && contact.phone) {
-            const registryDoc = await admin.firestore()
-              .collection("phoneRegistry").doc(contact.phone).get();
-            if (registryDoc.exists) fcmToken = registryDoc.data().fcmToken;
-          }
+          const fcmToken = await getFcmToken(contact.phone);
           if (fcmToken) {
             await admin.messaging().send({
               token: fcmToken,
