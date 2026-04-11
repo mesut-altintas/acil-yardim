@@ -374,7 +374,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ─────────────────────────────────────────────
   Future<void> _openTwilioSandbox() async {
     // WhatsApp sandbox aktivasyonu için Twilio join linki
-    final Uri waUri = Uri.parse('https://wa.me/+14155238886?text=join%20your-sandbox-word');
+    final Uri waUri = Uri.parse('https://wa.me/+14155238886?text=join%20battle-figure');
     if (await canLaunchUrl(waUri)) {
       await launchUrl(waUri, mode: LaunchMode.externalApplication);
     }
@@ -567,7 +567,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text(
-                    'WhatsApp\'tan +1 415 523 8886 numarasına\n"join [sandbox-kelimesi]" mesajı gönder',
+                    'WhatsApp\'tan +1 415 523 8886 numarasına\n"join battle-figure" mesajı gönder',
                     style: TextStyle(
                       color: Colors.white,
                       fontFamily: 'monospace',
