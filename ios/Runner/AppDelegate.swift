@@ -2,6 +2,8 @@ import Flutter
 import UIKit
 import AVFoundation
 import MediaPlayer
+import FirebaseMessaging
+import UserNotifications
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -11,6 +13,16 @@ import MediaPlayer
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
 
+    // FCM delegate — token yenileme olaylarını yakala
+    Messaging.messaging().delegate = self
+
+    // APNs'e kayıt ol (bildirimlerin iOS'a ulaşması için zorunlu)
+    UNUserNotificationCenter.current().delegate = self
+    UNUserNotificationCenter.current().requestAuthorization(
+      options: [.alert, .badge, .sound]
+    ) { _, _ in }
+    application.registerForRemoteNotifications()
+
     let controller = window?.rootViewController as! FlutterViewController
     let eventChannel = FlutterEventChannel(
       name: "com.acilyardim/volume_button",
@@ -19,6 +31,13 @@ import MediaPlayer
     eventChannel.setStreamHandler(VolumeButtonHandler())
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+}
+
+extension AppDelegate: MessagingDelegate {
+  func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+    print("[FCM] iOS token: \(fcmToken ?? "nil")")
+    // Flutter tarafı (home_screen.dart) zaten token'ı alıp phoneRegistry'ye yazıyor
   }
 }
 
