@@ -440,9 +440,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          'AcilYardım',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22),
+        title: const Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: 'Acil',
+                style: TextStyle(
+                  color: Color(0xFFE63946),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 22,
+                ),
+              ),
+              TextSpan(
+                text: 'Yardım',
+                style: TextStyle(
+                  color: Color(0xFF2ECC71),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 22,
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           GestureDetector(
