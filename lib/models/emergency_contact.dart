@@ -16,6 +16,7 @@ class EmergencyContact {
   String? fcmToken;       // Kişinin FCM token'ı (bildirim için)
   List<ContactChannel> channels; // Aktif bildirim kanalları
   int order;             // Sıralama indeksi (küçük = önce)
+  bool isEnabled;        // Kişi aktif mi? false ise hiçbir kanal tetiklenmez
 
   EmergencyContact({
     required this.id,
@@ -24,6 +25,7 @@ class EmergencyContact {
     this.fcmToken,
     List<ContactChannel>? channels,
     this.order = 0,
+    this.isEnabled = true,
   }) : channels = channels ?? [ContactChannel.notification];
 
   /// Firestore'dan gelen Map'i modele dönüştür
@@ -44,6 +46,7 @@ class EmergencyContact {
       fcmToken: data['fcmToken'],
       channels: channels,
       order: data['order'] ?? 0,
+      isEnabled: data['isEnabled'] ?? true,
     );
   }
 
@@ -55,6 +58,7 @@ class EmergencyContact {
       'fcmToken': fcmToken,
       'channels': channels.map((c) => c.name).toList(),
       'order': order,
+      'isEnabled': isEnabled,
     };
   }
 
@@ -68,6 +72,7 @@ class EmergencyContact {
     String? fcmToken,
     List<ContactChannel>? channels,
     int? order,
+    bool? isEnabled,
   }) {
     return EmergencyContact(
       id: id,
@@ -76,6 +81,7 @@ class EmergencyContact {
       fcmToken: fcmToken ?? this.fcmToken,
       channels: channels ?? List.from(this.channels),
       order: order ?? this.order,
+      isEnabled: isEnabled ?? this.isEnabled,
     );
   }
 

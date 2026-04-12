@@ -116,9 +116,14 @@ class ContactService {
       orElse: () => throw Exception('Kişi bulunamadı: $contactId'),
     );
 
-    await _firestoreService.updateContact(
+    await _firestoreService.updateContactFull(
       contact.copyWith(channels: channels),
     );
+  }
+
+  /// Kişi alanlarını kısmi güncelle
+  Future<void> updateContact(String contactId, Map<String, dynamic> fields) async {
+    await _firestoreService.updateContact(contactId, fields);
   }
 
   /// Kişiyi sil

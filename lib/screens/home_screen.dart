@@ -27,7 +27,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   TriggerStatus _triggerStatus = TriggerStatus.idle;
 
   // Erişilebilirlik servisi durumu (Android)
-  bool _accessibilityEnabled = true;
+  bool _accessibilityEnabled = true; // ignore: unused_field
   static const _accessibilityChannel = MethodChannel('com.acilyardim/accessibility');
 
   // Güvendeyim durumu
@@ -997,6 +997,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   'Ses açma (+) 3 saniye basılı tut → ACİL.\nSes kapatma (−) 3 saniye basılı tut → GÜVENDEYİM.\nEkran kilitliyken çalışması için Erişilebilirlik iznini ve "Her zaman izin ver" konum iznini etkinleştirin.'),
               _helpItem(Icons.settings, 'Ayarlar',
                   'Sağ üstten acil kişi ekleyebilir, mesaj şablonunu düzenleyebilirsiniz.'),
+              const SizedBox(height: 16),
+              const Divider(color: Colors.white12),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () async {
+                  final uri = Uri.parse('https://www.guvendeyim.net.tr');
+                  if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+                },
+                child: const Text('www.guvendeyim.net.tr',
+                    style: TextStyle(color: Color(0xFF2ECC71), fontSize: 12)),
+              ),
+              const SizedBox(height: 4),
+              GestureDetector(
+                onTap: () async {
+                  final uri = Uri.parse('mailto:bilgi@guvendeyim.net.tr');
+                  if (await canLaunchUrl(uri)) launchUrl(uri);
+                },
+                child: const Text('bilgi@guvendeyim.net.tr',
+                    style: TextStyle(color: Colors.white38, fontSize: 12)),
+              ),
               SizedBox(height: MediaQuery.of(ctx).padding.bottom + 8),
             ],
           ),

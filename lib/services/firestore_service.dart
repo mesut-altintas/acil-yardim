@@ -97,7 +97,11 @@ class FirestoreService {
   }
 
   /// Acil kişiyi güncelle
-  Future<void> updateContact(EmergencyContact contact) async {
+  Future<void> updateContact(String contactId, Map<String, dynamic> fields) async {
+    await _contactsRef.doc(contactId).update(fields);
+  }
+
+  Future<void> updateContactFull(EmergencyContact contact) async {
     await _contactsRef.doc(contact.id).update(contact.toFirestore());
   }
 

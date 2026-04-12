@@ -294,6 +294,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ─────────────────────────────────────────────
   // Kişiyi sil
   // ─────────────────────────────────────────────
+  Future<void> _toggleContactEnabled(EmergencyContact contact, bool value) async {
+    setState(() {
+      final i = _contacts.indexWhere((c) => c.id == contact.id);
+      if (i != -1) _contacts[i] = _contacts[i].copyWith(isEnabled: value);
+    });
+    await _contactService.updateContact(contact.id, {'isEnabled': value});
+  }
+
   Future<void> _deleteContact(EmergencyContact contact) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -365,7 +373,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (newPhone != null && newPhone.isNotEmpty && newPhone != contact.phone) {
-      await _firestoreService.updateContact(contact.copyWith(phone: newPhone));
+      await _firestoreService.updateContactFull(contact.copyWith(phone: newPhone));
     }
   }
 
@@ -536,6 +544,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onEditChannels: () => _editChannels(contact),
                 onEditPhone: () => _editPhone(contact),
                 onDelete: () => _deleteContact(contact),
+                onToggleEnabled: (val) => _toggleContactEnabled(contact, val),
               );
             },
           ),
@@ -641,6 +650,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'Çıkış',
                     style: TextStyle(color: Colors.red),
                   ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 32),
+
+          // ── İletişim ──
+          const _SectionHeader(title: 'İletişim', icon: Icons.info_outline),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.language, color: Colors.white54),
+                  title: const Text('Web Sitesi', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  subtitle: const Text('www.guvendeyim.net.tr', style: TextStyle(color: Color(0xFF2ECC71), fontSize: 13)),
+                  onTap: () async {
+                    final uri = Uri.parse('https://www.guvendeyim.net.tr');
+                    if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+                  },
+                ),
+                const Divider(color: Colors.white12, height: 1),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.email_outlined, color: Colors.white54),
+                  title: const Text('E-posta', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  subtitle: const Text('bilgi@guvendeyim.net.tr', style: TextStyle(color: Color(0xFF2ECC71), fontSize: 13)),
+                  onTap: () async {
+                    final uri = Uri.parse('mailto:bilgi@guvendeyim.net.tr');
+                    if (await canLaunchUrl(uri)) launchUrl(uri);
+                  },
                 ),
               ],
             ),
@@ -792,6 +839,7 @@ class _ContactEditTile extends StatelessWidget {
   final VoidCallback onEditChannels;
   final VoidCallback onEditPhone;
   final VoidCallback onDelete;
+  final ValueChanged<bool> onToggleEnabled;
 
   const _ContactEditTile({
     super.key,
@@ -799,6 +847,7 @@ class _ContactEditTile extends StatelessWidget {
     required this.onEditChannels,
     required this.onEditPhone,
     required this.onDelete,
+    required this.onToggleEnabled,
   });
 
   @override
@@ -810,8 +859,24 @@ class _ContactEditTile extends StatelessWidget {
         color: Colors.white.withOpacity(0.07),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: Opacity(
+        opacity: contact.isEnabled ? 1.0 : 0.45,
+        child: Row(
         children: [
+          // Aktif/pasif checkbox
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: Checkbox(
+              value: contact.isEnabled,
+              onChanged: (v) => onToggleEnabled(v ?? true),
+              activeColor: const Color(0xFFE63946),
+              side: const BorderSide(color: Colors.white38),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+          const SizedBox(width: 4),
+
           // Sürükleme tutacağı
           const Icon(Icons.drag_handle, color: Colors.white30),
           const SizedBox(width: 8),
@@ -888,6 +953,7 @@ class _ContactEditTile extends StatelessWidget {
             tooltip: 'Sil',
           ),
         ],
+        ),
       ),
     );
   }

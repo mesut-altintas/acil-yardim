@@ -83,10 +83,9 @@ exports.triggerEmergency = onCall(async (request) => {
   // Twilio istemcisi — .env dosyasından process.env ile oku
   const twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
 
-  const contacts = contactsSnap.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  }));
+  const contacts = contactsSnap.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .filter((c) => c.isEnabled !== false); // isEnabled: false olanları atla
 
   // ── 1. ADIM: FCM Push Notification + WhatsApp mesajları ──
   const notificationPromises = contacts.map(async (contact) => {
@@ -198,7 +197,9 @@ exports.sendSafeMessage = onCall(async (request) => {
   const safeMessage = (settings.safeMessage || `✅ ${callerName} güvende. Endişelenmeyin.`) + `\n— ${callerName}`;
 
   const twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
-  const contacts = contactsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const contacts = contactsSnap.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .filter((c) => c.isEnabled !== false);
 
   const results = await Promise.allSettled(
     contacts.map(async (contact) => {

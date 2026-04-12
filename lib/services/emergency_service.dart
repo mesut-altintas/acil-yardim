@@ -59,11 +59,12 @@ class EmergencyService {
       return;
     }
 
-    // Kişi listesi kontrolü
-    final contacts = await _firestoreService.getContacts();
+    // Kişi listesi kontrolü — sadece aktif kişiler
+    final allContacts = await _firestoreService.getContacts();
+    final contacts = allContacts.where((c) => c.isEnabled).toList();
     if (contacts.isEmpty) {
       _setStatus(TriggerStatus.error);
-      print('[EmergencyService] Acil kişi eklenmemiş, tetikleme iptal edildi');
+      print('[EmergencyService] Aktif acil kişi yok, tetikleme iptal edildi');
       return;
     }
 
@@ -219,7 +220,7 @@ class EmergencyService {
   // ─────────────────────────────────────────────
   Future<void> _callContactsFromDevice(String userId) async {
     try {
-      final contacts = await _firestoreService.getContacts();
+      final contacts = (await _firestoreService.getContacts()).where((c) => c.isEnabled).toList();
       final callContacts = contacts.where(
         (c) => c.channels.any((ch) => ch.name == 'call'),
       ).toList();
@@ -276,8 +277,8 @@ class EmergencyService {
     _setStatus(TriggerStatus.fallback);
 
     try {
-      // Firestore'dan ilk kişinin numarasını al
-      final contacts = await _firestoreService.getContacts();
+      // Firestore'dan aktif kişileri al
+      final contacts = (await _firestoreService.getContacts()).where((c) => c.isEnabled).toList();
 
       // Arama kanalı olan ilk kişiyi bul
       final callContact = contacts.firstWhere(
@@ -318,8 +319,8 @@ class EmergencyService {
       await callable.call({'userId': userId});
       print('[EmergencyService] Güvendeyim mesajı gönderildi');
 
-      // SMS kanalı: cihazdan gönder (Android only)
-      final contacts = await _firestoreService.getContacts();
+      // SMS kanalı: cihazdan gönder (Android only) — sadece aktif kişiler
+      final contacts = (await _firestoreService.getContacts()).where((c) => c.isEnabled).toList();
       final settings = await _firestoreService.getSettings();
       final callerName = settings['callerName'] ?? 'Kullanıcı';
       final safeMsg = settings['safeMessage'] ?? '✅ $callerName güvende. Endişelenmeyin.';

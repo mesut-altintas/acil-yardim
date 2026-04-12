@@ -9,6 +9,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 
@@ -480,6 +481,18 @@ class _LoginScreenState extends State<_LoginScreen> {
                 'Konumunuz yalnızca acil durum anında\npaylaşılır ve saklanmaz.',
                 style: TextStyle(color: Colors.white30, fontSize: 12),
                 textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () async {
+                  final uri = Uri.parse('https://www.guvendeyim.net.tr');
+                  if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+                },
+                child: const Text(
+                  'www.guvendeyim.net.tr',
+                  style: TextStyle(color: Color(0xFF2ECC71), fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
               ),
             ],
               ),
