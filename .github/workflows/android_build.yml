@@ -35,6 +35,9 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      - name: Generate launcher icons
+        run: flutter pub run flutter_launcher_icons
+
       - name: Build debug APK
         run: flutter build apk --debug
 

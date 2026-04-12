@@ -29,6 +29,9 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      - name: Generate launcher icons
+        run: flutter pub run flutter_launcher_icons
+
       - name: Setup Apple API Key
         run: |
           mkdir -p ~/.private_keys

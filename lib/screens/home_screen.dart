@@ -966,6 +966,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _showHelp() {
+    final isIOS = Platform.isIOS;
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A2E),
@@ -974,39 +975,151 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.4,
-        maxChildSize: 0.95,
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.97,
         expand: false,
         builder: (_, scrollController) => SingleChildScrollView(
           controller: scrollController,
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Nasıl Kullanılır?',
-                  style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
+              // Başlık
+              Row(
+                children: [
+                  const Icon(Icons.help_outline, color: Color(0xFF2ECC71), size: 24),
+                  const SizedBox(width: 10),
+                  Text(
+                    isIOS ? 'Kullanım Kılavuzu — iPhone' : 'Kullanım Kılavuzu — Android',
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // ── TEMEL KULLANIM ──
+              _helpSection('TEMEL KULLANIM'),
               _helpItem(Icons.warning_rounded, 'ACİL Butonu',
-                  '3 saniye basılı tutunca GPS konumunuzla birlikte tüm acil kişilere WhatsApp mesajı gönderilir.'),
+                  '3 saniye basılı tutun.\n'
+                  'GPS konumunuzla birlikte tüm aktif acil kişilere:\n'
+                  '  • WhatsApp mesajı gönderilir\n'
+                  '  • Uygulama bildirimi (FCM) iletilir\n'
+                  '  • SMS gönderilir (${isIOS ? 'iOS desteklemez' : 'Android'})\n'
+                  '  • Telefon araması başlatılır (ayarlandıysa)'),
               _helpItem(Icons.check_circle, 'GÜVENDEYİM Butonu',
-                  '3 saniye basılı tutunca tüm acil kişilere güvende olduğunuz bildirilir.'),
-              _helpItem(Icons.radio_button_checked, 'AB Shutter 3 — iOS',
-                  'Ses açma (+) 2 kez hızlıca bas → ACİL.\nSes kapatma (−) 2 kez hızlıca bas → GÜVENDEYİM.\nEkran kilitliyken de çalışır. Uygulama AKTİF olmalı.'),
-              _helpItem(Icons.radio_button_checked, 'AB Shutter 3 — Android',
-                  'Ses açma (+) 3 saniye basılı tut → ACİL.\nSes kapatma (−) 3 saniye basılı tut → GÜVENDEYİM.\nEkran kilitliyken çalışması için Erişilebilirlik iznini ve "Her zaman izin ver" konum iznini etkinleştirin.'),
-              _helpItem(Icons.settings, 'Ayarlar',
-                  'Sağ üstten acil kişi ekleyebilir, mesaj şablonunu düzenleyebilirsiniz.'),
+                  '3 saniye basılı tutun.\n'
+                  'Tüm aktif acil kişilere "güvende" mesajı gönderilir.\n'
+                  'Endişelenmeyin mesajının ardından rahatlama bildirimi iletilir.'),
+              _helpItem(Icons.history, 'Geçmiş',
+                  'Ekranın üst kısmındaki saat ikonuna basın.\n'
+                  'Gönderdiğiniz ve aldığınız tüm acil bildirimler listelenir.'),
+
+              const SizedBox(height: 8),
+
+              // ── AB SHUTTER 3 (platform bazlı) ──
+              _helpSection('AB SHUTTER 3 BLUETOOTH DÜĞME'),
+              if (isIOS) ...[
+                _helpItem(Icons.bluetooth, 'Bağlantı',
+                    '1. iPhone\'un Bluetooth\'unu açın.\n'
+                    '2. AB Shutter 3\'ün pil kapağını açıp kapatarak uyandırın.\n'
+                    '3. iPhone Ayarlar → Bluetooth\'ta "AB Shutter3" görününce eşleştirin.'),
+                _helpItem(Icons.touch_app, 'Kullanım',
+                    'Ses açma (+) düğmesi → ACİL\n'
+                    'Ses kapatma (−) düğmesi → GÜVENDEYİM\n\n'
+                    'Ekran kilitliyken de çalışır.\n'
+                    'Uygulama arka planda veya ön planda AKTİF olmalı.\n'
+                    'Uygulamayı tamamen kapatırsanız (uygulama yöneticisinden silerseniz) çalışmaz.'),
+                _helpItem(Icons.battery_alert, 'Pil & Sorun Giderme',
+                    '• Düğme yanıt vermiyorsa pili yenileyin (CR2032).\n'
+                    '• Bluetooth bağlantısı kopuksa telefon yakında tutun (≤10 m).\n'
+                    '• Eşleştirmeyi kaldırıp tekrar bağlayın.\n'
+                    '• Uygulamayı kapatıp yeniden açın.'),
+              ] else ...[
+                _helpItem(Icons.bluetooth, 'Bağlantı',
+                    '1. Android Bluetooth\'u açın.\n'
+                    '2. AB Shutter 3\'ü uyandırın (pil kapağı).\n'
+                    '3. Ayarlar → Bluetooth → "AB Shutter3"\'ü seçip eşleştirin.'),
+                _helpItem(Icons.touch_app, 'Kullanım',
+                    'Ses açma (+) 3 sn basılı tut → ACİL\n'
+                    'Ses kapatma (−) 3 sn basılı tut → GÜVENDEYİM\n\n'
+                    'Normal (kısa) basış ses kontrolü yapar, tetikleme yapmaz.'),
+                _helpItem(Icons.lock_open, 'Kilitli Ekranda Çalışma',
+                    'Kilitli ekranda tetikleme için:\n'
+                    '1. Erişilebilirlik iznini etkinleştirin:\n'
+                    '   Ayarlar → Erişilebilirlik → Yüklü Uygulamalar\n'
+                    '   → Güvendeyim Ses Tuşu → Aç\n'
+                    '2. Konum iznini "Her zaman izin ver" yapın:\n'
+                    '   Ayarlar → Uygulamalar → Güvendeyim\n'
+                    '   → İzinler → Konum → Her zaman izin ver\n'
+                    '3. Pil optimizasyonunu kapatın:\n'
+                    '   Ayarlar → Pil → Güvendeyim → Kısıtlama yok'),
+                _helpItem(Icons.battery_alert, 'Pil & Sorun Giderme',
+                    '• APK güncellemesinden sonra Erişilebilirlik iznini\n'
+                    '  yeniden açmanız gerekir (Android güvenlik kısıtı).\n'
+                    '• Düğme yanıt vermiyorsa pili yenileyin (CR2032).\n'
+                    '• Bağlantı kopuksa Bluetooth\'u kapatıp açın.'),
+              ],
+
+              const SizedBox(height: 8),
+
+              // ── AYARLAR ──
+              _helpSection('AYARLAR'),
+              _helpItem(Icons.person_add, 'Acil Kişi Ekleme',
+                  'Sağ üstteki ⚙ ikonuna basın.\n'
+                  '"+" ile yeni kişi ekleyin.\n'
+                  'Her kişi için ad, telefon ve bildirim kanallarını seçin.\n'
+                  'Checkbox ile kişiyi geçici olarak devre dışı bırakabilirsiniz.'),
+              _helpItem(Icons.message, 'Mesaj Şablonu',
+                  'Ayarlar\'dan ACİL ve GÜVENDEYİM mesaj metinlerini\n'
+                  'kişiselleştirebilirsiniz.\n'
+                  '"Arayan Adı" alanı mesajlarda imza olarak görünür.'),
+              if (!isIOS)
+                _helpItem(Icons.sms, 'WhatsApp Sandbox',
+                    'WhatsApp mesajlarını alabilmek için acil kişilerin\n'
+                    '"join battle-figure" mesajını\n'
+                    '+1 415 523 8886 numarasına WhatsApp\'tan göndermesi gerekir.\n'
+                    'Bu adım tamamlanana kadar WhatsApp bildirimleri iletilmez.'),
+              if (isIOS)
+                _helpItem(Icons.sms, 'WhatsApp Sandbox',
+                    'WhatsApp mesajlarını alabilmek için acil kişilerin\n'
+                    '"join battle-figure" mesajını\n'
+                    '+1 415 523 8886 numarasına WhatsApp\'tan göndermesi gerekir.'),
+
+              const SizedBox(height: 8),
+
+              // ── BİLDİRİM ALIMLARI ──
+              _helpSection(isIOS ? 'BİLDİRİM AYARLARI — iPhone' : 'BİLDİRİM AYARLARI — Android'),
+              if (isIOS) ...[
+                _helpItem(Icons.notifications_active, 'Bildirim İzni',
+                    'Uygulama ilk açıldığında bildirim izni ister.\n'
+                    'İzin vermediyseniz:\n'
+                    'iPhone Ayarlar → Güvendeyim → Bildirimler → İzin Ver'),
+                _helpItem(Icons.do_not_disturb_off, 'Odaklanma Modu',
+                    'iPhone\'un "Rahatsız Etme" veya Odaklanma modu açıksa\n'
+                    'acil bildirimler engellenebilir.\n'
+                    'Ayarlar → Odaklanma → İzin Verilen Uygulamalar\'a Güvendeyim\'i ekleyin.'),
+              ] else ...[
+                _helpItem(Icons.notifications_active, 'Bildirim İzni',
+                    'Uygulama ilk açıldığında bildirim izni ister.\n'
+                    'İzin vermediyseniz:\n'
+                    'Ayarlar → Uygulamalar → Güvendeyim → Bildirimler → Aç'),
+                _helpItem(Icons.battery_saver, 'Pil Tasarrufu',
+                    'Pil tasarrufu bildirimleri geciktirebilir.\n'
+                    'Ayarlar → Pil → Güvendeyim → Kısıtlama yok\n'
+                    'veya Arka plan veri kullanımına izin verin.'),
+              ],
+
               const SizedBox(height: 16),
               const Divider(color: Colors.white12),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               GestureDetector(
                 onTap: () async {
                   final uri = Uri.parse('https://www.guvendeyim.net.tr');
                   if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
                 },
                 child: const Text('www.guvendeyim.net.tr',
-                    style: TextStyle(color: Color(0xFF2ECC71), fontSize: 12)),
+                    style: TextStyle(color: Color(0xFF2ECC71), fontSize: 13)),
               ),
               const SizedBox(height: 4),
               GestureDetector(
@@ -1017,7 +1130,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: const Text('bilgi@guvendeyim.net.tr',
                     style: TextStyle(color: Colors.white38, fontSize: 12)),
               ),
-              SizedBox(height: MediaQuery.of(ctx).padding.bottom + 8),
+              SizedBox(height: MediaQuery.of(ctx).padding.bottom + 24),
             ],
           ),
         ),
@@ -1025,20 +1138,39 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  Widget _helpSection(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, top: 4),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Color(0xFF2ECC71),
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.2,
+        ),
+      ),
+    );
+  }
+
   Widget _helpItem(IconData icon, String title, String desc) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: const Color(0xFFE63946), size: 22),
+          Icon(icon, color: const Color(0xFFE63946), size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                Text(desc, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                Text(title,
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 3),
+                Text(desc,
+                    style: const TextStyle(color: Colors.white60, fontSize: 12, height: 1.5)),
               ],
             ),
           ),
