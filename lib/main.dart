@@ -486,7 +486,7 @@ class _LoginScreenState extends State<_LoginScreen> {
               GestureDetector(
                 onTap: () async {
                   final uri = Uri.parse('https://www.guvendeyim.net.tr');
-                  if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+                  if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
                 },
                 child: const Text(
                   'www.guvendeyim.net.tr',

@@ -675,7 +675,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: const Text('www.guvendeyim.net.tr', style: TextStyle(color: Color(0xFF2ECC71), fontSize: 13)),
                   onTap: () async {
                     final uri = Uri.parse('https://www.guvendeyim.net.tr');
-                    if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+                    if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
                   },
                 ),
                 const Divider(color: Colors.white12, height: 1),
@@ -686,7 +686,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: const Text('bilgi@guvendeyim.net.tr', style: TextStyle(color: Color(0xFF2ECC71), fontSize: 13)),
                   onTap: () async {
                     final uri = Uri.parse('mailto:bilgi@guvendeyim.net.tr');
-                    if (await canLaunchUrl(uri)) launchUrl(uri);
+                    if (await canLaunchUrl(uri)) await launchUrl(uri);
                   },
                 ),
               ],

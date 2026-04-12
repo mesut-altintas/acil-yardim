@@ -147,7 +147,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: FilledButton.icon(
                   onPressed: () async {
                     final uri = Uri.parse('https://maps.google.com/?q=$lat,$lng');
-                    if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+                    if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
                   },
                   icon: const Icon(Icons.map),
                   label: const Text('Haritada Aç'),
@@ -762,7 +762,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: OutlinedButton.icon(
                   onPressed: () async {
                     final uri = Uri.parse(log.mapsLink!);
-                    if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+                    if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
                   },
                   icon: const Icon(Icons.map, size: 16),
                   label: const Text('Haritada Aç'),
@@ -1005,7 +1005,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   'GPS konumunuzla birlikte tüm aktif acil kişilere:\n'
                   '  • WhatsApp mesajı gönderilir\n'
                   '  • Uygulama bildirimi (FCM) iletilir\n'
-                  '  • SMS gönderilir (${isIOS ? 'iOS desteklemez' : 'Android'})\n'
+                  '  • SMS gönderilir (${isIOS ? "iOS desteklemez" : "Android"})\n'
                   '  • Telefon araması başlatılır (ayarlandıysa)'),
               _helpItem(Icons.check_circle, 'GÜVENDEYİM Butonu',
                   '3 saniye basılı tutun.\n'
@@ -1116,7 +1116,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               GestureDetector(
                 onTap: () async {
                   final uri = Uri.parse('https://www.guvendeyim.net.tr');
-                  if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
+                  if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
                 },
                 child: const Text('www.guvendeyim.net.tr',
                     style: TextStyle(color: Color(0xFF2ECC71), fontSize: 13)),
@@ -1125,7 +1125,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               GestureDetector(
                 onTap: () async {
                   final uri = Uri.parse('mailto:bilgi@guvendeyim.net.tr');
-                  if (await canLaunchUrl(uri)) launchUrl(uri);
+                  if (await canLaunchUrl(uri)) await launchUrl(uri);
                 },
                 child: const Text('bilgi@guvendeyim.net.tr',
                     style: TextStyle(color: Colors.white38, fontSize: 12)),
