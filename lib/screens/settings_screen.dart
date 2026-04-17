@@ -136,6 +136,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final phoneContact = await _contactService.pickContact();
       if (phoneContact == null) return;
 
+      // Birden fazla numara varsa kullanıcıya seçtir
+      String? selectedPhone;
+      if (phoneContact.phones.length > 1) {
+        selectedPhone = await showDialog<String>(
+          context: context,
+          builder: (ctx) => _PhonePickerDialog(
+            contactName: phoneContact.displayName,
+            phones: phoneContact.phones
+                .map((p) => {'number': p.number, 'label': p.label.name})
+                .toList(),
+          ),
+        );
+        if (selectedPhone == null) return; // İptal
+      }
+
       final selectedChannels = await showDialog<List<ContactChannel>>(
         context: context,
         builder: (ctx) => _ChannelPickerDialog(contactName: phoneContact.displayName),
@@ -146,6 +161,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await _contactService.saveContactFromPhone(
         phoneContact,
         channels: selectedChannels,
+        selectedPhone: selectedPhone,
       );
 
       if (mounted) {
@@ -706,6 +722,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _callerNameController.dispose();
     _myPhoneController.dispose();
     super.dispose();
+  }
+}
+
+// ─────────────────────────────────────────────
+// Telefon numarası seçim dialogu
+// ─────────────────────────────────────────────
+class _PhonePickerDialog extends StatelessWidget {
+  final String contactName;
+  final List<Map<String, String>> phones; // [{'number': '...', 'label': '...'}]
+
+  const _PhonePickerDialog({
+    required this.contactName,
+    required this.phones,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF1A1A2E),
+      title: Text(
+        contactName,
+        style: const TextStyle(color: Colors.white, fontSize: 16),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Hangi numarayı eklemek istiyorsunuz?',
+            style: TextStyle(color: Colors.white60, fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          ...phones.map((p) {
+            final number = p['number'] ?? '';
+            final label = p['label'] ?? '';
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.phone, color: Color(0xFF2ECC71), size: 20),
+              title: Text(
+                number,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+              ),
+              subtitle: label.isNotEmpty
+                  ? Text(label, style: const TextStyle(color: Colors.white38, fontSize: 12))
+                  : null,
+              onTap: () => Navigator.pop(context, number),
+            );
+          }),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, null),
+          child: const Text('İptal', style: TextStyle(color: Colors.white38)),
+        ),
+      ],
+    );
   }
 }
 

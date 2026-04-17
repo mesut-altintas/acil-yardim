@@ -27,17 +27,19 @@ class ContactService {
   }
 
   /// Seçilen rehber kişisini acil kişi olarak kaydet
+  /// [selectedPhone]: birden fazla numara varsa seçilen numara, null ise ilk numara kullanılır
   Future<EmergencyContact> saveContactFromPhone(
     Contact phoneContact, {
     List<ContactChannel> channels = const [ContactChannel.notification],
+    String? selectedPhone,
   }) async {
-    // İlk telefon numarasını al
+    // Telefon numarası kontrolü
     if (phoneContact.phones.isEmpty) {
       throw Exception('Bu kişinin telefon numarası yok');
     }
 
     // Numarayı E.164 formatına getir (başına + ekle, boşlukları temizle)
-    String phone = phoneContact.phones.first.number
+    String phone = (selectedPhone ?? phoneContact.phones.first.number)
         .replaceAll(' ', '')
         .replaceAll('-', '')
         .replaceAll('(', '')
