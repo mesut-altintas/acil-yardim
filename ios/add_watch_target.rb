@@ -1,11 +1,6 @@
 #!/usr/bin/env ruby
 # Watch App target'ı Xcode projesine programatik olarak ekler.
-# GitHub Actions macOS runner'ında çalışır.
 # İdempotent: target zaten varsa hiçbir şey yapmaz.
-#
-# NOT: PBXCopyFilesBuildPhase yerine PBXShellScriptBuildPhase kullanılır.
-# Bunun nedeni: Flutter'ın "Thin Binary" scriptiyle döngü (cycle) oluşmaması için
-# input/output path tanımlamak gerekir — bunu sadece shell script fazı destekler.
 
 require 'xcodeproj'
 
@@ -31,6 +26,12 @@ watch_target = project.new_target(
   :watchos,
   '7.0'
 )
+
+# new_target() otomatik dosya ekleyebilir — hepsini temizle
+watch_target.source_build_phase.files.map(&:itself).each do |bf|
+  bf.remove_from_project
+end
+puts "[watch_setup] Source build phase temizlendi"
 
 # ── Build ayarları ──
 watch_target.build_configurations.each do |config|
@@ -58,38 +59,37 @@ watch_group = project.main_group.new_group(WATCH_TARGET_NAME, WATCH_FILES_DIR)
 %w[AcilYardimWatchApp.swift ContentView.swift].each do |filename|
   file_ref = watch_group.new_file(filename)
   watch_target.source_build_phase.add_file_reference(file_ref)
+  puts "[watch_setup] Dosya eklendi: #{filename}"
 end
 watch_group.new_file('Info.plist')
 
-# ── Runner target'ına Watch target'ı bağımlılık olarak ekle ──
+# ── Runner target'ına bağımlılık ekle ──
 runner_target = project.targets.find { |t| t.name == 'Runner' }
 raise "Runner target bulunamadı!" unless runner_target
 
 runner_target.add_dependency(watch_target)
 
-# ── Embed Watch Content: Shell Script fazı (CopyFiles değil) ──
-# Explicit input/output sayesinde Xcode döngüyü kırabiliyor.
+# ── Embed Watch Content: Shell Script fazı ──
+# PBXShellScriptBuildPhase + input/output paths → Xcode döngüyü çözebilir
 existing_embed = runner_target.build_phases.find do |p|
   p.respond_to?(:name) && p.name == 'Embed Watch Content'
 end
 
 unless existing_embed
   embed_script = project.new(Xcodeproj::Project::Object::PBXShellScriptBuildPhase)
-  embed_script.name          = 'Embed Watch Content'
-  embed_script.shell_path    = '/bin/sh'
-  embed_script.shell_script  = <<~'BASH'
+  embed_script.name         = 'Embed Watch Content'
+  embed_script.shell_path   = '/bin/sh'
+  embed_script.shell_script = <<~'BASH'
     WATCH_APP="${BUILT_PRODUCTS_DIR}/AcilYardim Watch App.app"
     DEST="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Watch"
     if [ -d "$WATCH_APP" ]; then
       mkdir -p "$DEST"
       cp -Rf "$WATCH_APP" "$DEST/"
-      echo "[embed_watch] Watch app kopyalandı: $DEST"
+      echo "[embed_watch] Kopyalandı: $DEST"
     else
       echo "[embed_watch] Watch app bulunamadı, atlanıyor: $WATCH_APP"
     fi
   BASH
-
-  # Input/output tanımları döngüyü kırıyor
   embed_script.input_paths  = ["$(BUILT_PRODUCTS_DIR)/AcilYardim Watch App.app"]
   embed_script.output_paths = ["$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Watch/AcilYardim Watch App.app"]
 
@@ -101,7 +101,7 @@ unless existing_embed
 
   if thin_binary_index
     runner_target.build_phases.insert(thin_binary_index, embed_script)
-    puts "[watch_setup] Embed fazı Thin Binary'den önce eklendi (index: #{thin_binary_index})"
+    puts "[watch_setup] Embed fazı index #{thin_binary_index}'e eklendi"
   else
     runner_target.build_phases << embed_script
     puts "[watch_setup] Embed fazı sona eklendi"
@@ -109,4 +109,4 @@ unless existing_embed
 end
 
 project.save
-puts "[watch_setup] Watch target başarıyla eklendi."
+puts "[watch_setup] Tamamlandı."
