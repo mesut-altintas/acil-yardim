@@ -72,7 +72,8 @@ end
 unless embed_phase
   embed_phase = project.new(Xcodeproj::Project::Object::PBXCopyFilesBuildPhase)
   embed_phase.name = 'Embed Watch Content'
-  embed_phase.symbol_dst_subfolder_spec = :watch_app
+  # dstSubfolderSpec = 16 → Watch app destination (Xcode internal value)
+  embed_phase.dst_subfolder_spec = '16'
   runner_target.build_phases << embed_phase
 end
 
