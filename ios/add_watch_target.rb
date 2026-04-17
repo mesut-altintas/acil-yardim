@@ -1,6 +1,9 @@
 #!/usr/bin/env ruby
 # Watch App target'ı Xcode projesine programatik olarak ekler.
 # İdempotent: target zaten varsa hiçbir şey yapmaz.
+#
+# new_target(:watch2_app) yerine PBXNativeTarget elle oluşturuluyor —
+# çünkü new_target otomatik fazlar ekleyip "Multiple commands produce" hatasına yol açıyor.
 
 require 'xcodeproj'
 
@@ -17,25 +20,34 @@ if project.targets.any? { |t| t.name == WATCH_TARGET_NAME }
   exit 0
 end
 
-puts "[watch_setup] Watch target ekleniyor..."
+puts "[watch_setup] Watch target oluşturuluyor (manuel PBXNativeTarget)..."
 
-# ── Watch App target oluştur ──
-watch_target = project.new_target(
-  :watch2_app,
-  WATCH_TARGET_NAME,
-  :watchos,
-  '7.0'
-)
+# ── 1. Ürün referansı ──
+products_group = project.products_group
+watch_product = project.new(Xcodeproj::Project::Object::PBXFileReference)
+watch_product.path             = "#{WATCH_TARGET_NAME}.app"
+watch_product.source_tree      = 'BUILT_PRODUCTS_DIR'
+watch_product.include_in_index = '0'
+watch_product.explicit_file_type = 'wrapper.application'
+products_group << watch_product
 
-# new_target() otomatik dosya ekleyebilir — hepsini temizle
-watch_target.source_build_phase.files.map(&:itself).each do |bf|
-  bf.remove_from_project
-end
-puts "[watch_setup] Source build phase temizlendi"
+# ── 2. PBXNativeTarget ──
+watch_target = project.new(Xcodeproj::Project::Object::PBXNativeTarget)
+watch_target.name             = WATCH_TARGET_NAME
+watch_target.product_name     = WATCH_TARGET_NAME
+watch_target.product_type     = 'com.apple.product-type.application.watchapp2'
+watch_target.product_reference = watch_product
+project.targets << watch_target
 
-# ── Build ayarları ──
-watch_target.build_configurations.each do |config|
-  config.build_settings.merge!(
+# ── 3. Build konfigürasyonları ──
+config_list = project.new(Xcodeproj::Project::Object::XCConfigurationList)
+config_list.default_configuration_name      = 'Release'
+config_list.default_configuration_is_visible = '0'
+
+%w[Debug Release].each do |config_name|
+  config = project.new(Xcodeproj::Project::Object::XCBuildConfiguration)
+  config.name = config_name
+  config.build_settings = {
     'PRODUCT_NAME'                          => WATCH_TARGET_NAME,
     'PRODUCT_BUNDLE_IDENTIFIER'             => WATCH_BUNDLE_ID,
     'SWIFT_VERSION'                         => '5.0',
@@ -49,28 +61,46 @@ watch_target.build_configurations.each do |config|
     'CODE_SIGN_STYLE'                       => 'Automatic',
     'DEVELOPMENT_TEAM'                      => '$(DEVELOPMENT_TEAM)',
     'LD_RUNPATH_SEARCH_PATHS'               => '$(inherited) @executable_path/Frameworks',
-    'SWIFT_OPTIMIZATION_LEVEL'              => config.name == 'Debug' ? '-Onone' : '-O',
-  )
+    'SWIFT_OPTIMIZATION_LEVEL'              => config_name == 'Debug' ? '-Onone' : '-O',
+    'DEBUG_INFORMATION_FORMAT'              => config_name == 'Debug' ? 'dwarf' : 'dwarf-with-dsym',
+  }
+  config_list.build_configurations << config
 end
 
-# ── Dosya grubu ──
+watch_target.build_configuration_list = config_list
+
+# ── 4. Sadece gerekli build fazları — elle, minimal ──
+# Sources fazı
+sources_phase = project.new(Xcodeproj::Project::Object::PBXSourcesBuildPhase)
+watch_target.build_phases << sources_phase
+
+# Resources fazı
+resources_phase = project.new(Xcodeproj::Project::Object::PBXResourcesBuildPhase)
+watch_target.build_phases << resources_phase
+
+# Frameworks fazı
+frameworks_phase = project.new(Xcodeproj::Project::Object::PBXFrameworksBuildPhase)
+watch_target.build_phases << frameworks_phase
+
+# ── 5. Dosya grubu + kaynak ekle ──
 watch_group = project.main_group.new_group(WATCH_TARGET_NAME, WATCH_FILES_DIR)
 
 %w[AcilYardimWatchApp.swift ContentView.swift].each do |filename|
   file_ref = watch_group.new_file(filename)
-  watch_target.source_build_phase.add_file_reference(file_ref)
-  puts "[watch_setup] Dosya eklendi: #{filename}"
+  build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
+  build_file.file_ref = file_ref
+  sources_phase.files << build_file
+  puts "[watch_setup] Kaynak eklendi: #{filename}"
 end
 watch_group.new_file('Info.plist')
 
-# ── Runner target'ına bağımlılık ekle ──
+# ── 6. Runner'a bağımlılık ekle ──
 runner_target = project.targets.find { |t| t.name == 'Runner' }
 raise "Runner target bulunamadı!" unless runner_target
 
 runner_target.add_dependency(watch_target)
 
-# ── Embed Watch Content: Shell Script fazı ──
-# PBXShellScriptBuildPhase + input/output paths → Xcode döngüyü çözebilir
+# ── 7. Embed Watch Content: Shell Script fazı (input/output ile döngü önleme) ──
 existing_embed = runner_target.build_phases.find do |p|
   p.respond_to?(:name) && p.name == 'Embed Watch Content'
 end
@@ -93,15 +123,13 @@ unless existing_embed
   embed_script.input_paths  = ["$(BUILT_PRODUCTS_DIR)/AcilYardim Watch App.app"]
   embed_script.output_paths = ["$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Watch/AcilYardim Watch App.app"]
 
-  # Thin Binary'den ÖNCE ekle
   thin_binary_index = runner_target.build_phases.index do |p|
-    p.respond_to?(:shell_script) &&
-    p.shell_script.to_s.include?('Thin Binary')
+    p.respond_to?(:shell_script) && p.shell_script.to_s.include?('Thin Binary')
   end
 
   if thin_binary_index
     runner_target.build_phases.insert(thin_binary_index, embed_script)
-    puts "[watch_setup] Embed fazı index #{thin_binary_index}'e eklendi"
+    puts "[watch_setup] Embed fazı Thin Binary'den önce eklendi (index: #{thin_binary_index})"
   else
     runner_target.build_phases << embed_script
     puts "[watch_setup] Embed fazı sona eklendi"
