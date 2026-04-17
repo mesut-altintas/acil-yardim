@@ -32,6 +32,12 @@ jobs:
       - name: Generate launcher icons
         run: flutter pub run flutter_launcher_icons
 
+      - name: Install xcodeproj gem
+        run: gem install xcodeproj --no-document
+
+      - name: Add Watch App target to Xcode project
+        run: ruby ios/add_watch_target.rb
+
       - name: Setup Apple API Key
         run: |
           mkdir -p ~/.private_keys
