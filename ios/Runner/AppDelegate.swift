@@ -4,9 +4,14 @@ import AVFoundation
 import MediaPlayer
 import FirebaseMessaging
 import UserNotifications
+import WatchConnectivity
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
+
+  // Watch'tan gelen tetiklemeleri Flutter'a iletmek için
+  private var watchChannel: FlutterMethodChannel?
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -24,23 +29,77 @@ import UserNotifications
     application.registerForRemoteNotifications()
 
     let controller = window?.rootViewController as! FlutterViewController
+
+    // Ses tuşu event channel (AB Shutter 3)
     let eventChannel = FlutterEventChannel(
       name: "com.acilyardim/volume_button",
       binaryMessenger: controller.binaryMessenger
     )
     eventChannel.setStreamHandler(VolumeButtonHandler())
 
+    // Watch tetikleme method channel
+    watchChannel = FlutterMethodChannel(
+      name: "com.acilyardim/watch_trigger",
+      binaryMessenger: controller.binaryMessenger
+    )
+
+    // WatchConnectivity başlat
+    if WCSession.isSupported() {
+      WCSession.default.delegate = self
+      WCSession.default.activate()
+    }
+
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 }
 
+// MARK: - MessagingDelegate
 extension AppDelegate: MessagingDelegate {
   func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
     print("[FCM] iOS token: \(fcmToken ?? "nil")")
-    // Flutter tarafı (home_screen.dart) zaten token'ı alıp phoneRegistry'ye yazıyor
   }
 }
 
+// MARK: - WCSessionDelegate
+extension AppDelegate: WCSessionDelegate {
+
+  func session(_ session: WCSession,
+               activationDidCompleteWith activationState: WCSessionActivationState,
+               error: Error?) {
+    print("[Watch] WCSession activated: \(activationState.rawValue)")
+  }
+
+  func sessionDidBecomeInactive(_ session: WCSession) {}
+  func sessionDidDeactivate(_ session: WCSession) {
+    WCSession.default.activate()
+  }
+
+  // Watch'tan gelen mesajı al → Flutter'a ilet
+  func session(_ session: WCSession,
+               didReceiveMessage message: [String: Any],
+               replyHandler: @escaping ([String: Any]) -> Void) {
+
+    guard let type = message["trigger"] as? String else {
+      replyHandler(["status": "error", "reason": "unknown message"])
+      return
+    }
+
+    print("[Watch] Tetikleme alındı: \(type)")
+
+    // Ana thread'de Flutter'a ilet
+    DispatchQueue.main.async {
+      self.watchChannel?.invokeMethod(type, arguments: nil, result: { result in
+        if let error = result as? FlutterError {
+          replyHandler(["status": "error", "reason": error.message ?? "flutter error"])
+        } else {
+          replyHandler(["status": "ok"])
+        }
+      })
+    }
+  }
+}
+
+// MARK: - VolumeButtonHandler
 class VolumeButtonHandler: NSObject, FlutterStreamHandler {
   private var volumeObserver: NSKeyValueObservation?
   private var eventSink: FlutterEventSink?
@@ -79,21 +138,18 @@ class VolumeButtonHandler: NSObject, FlutterStreamHandler {
       let newVolume = sess.outputVolume
 
       if newVolume > self.lastVolume + 0.01 {
-        // Ses açma butonu basıldı — hold detection Flutter tarafında yapılır
         self.resetVolume()
         self.lastVolume = 0.5
         DispatchQueue.main.async {
           self.eventSink?("volume_up")
         }
       } else if newVolume < self.lastVolume - 0.01 {
-        // Ses kapatma butonu basıldı — hold detection Flutter tarafında yapılır
         self.resetVolume()
         self.lastVolume = 0.5
         DispatchQueue.main.async {
           self.eventSink?("volume_down")
         }
       }
-      // else: resetVolume() tetiklediği 0.5'e dönüş → yoksay
     }
 
     return nil
@@ -109,11 +165,9 @@ class VolumeButtonHandler: NSObject, FlutterStreamHandler {
     engine.connect(player, to: engine.mainMixerNode, format: format)
     engine.mainMixerNode.outputVolume = 0.0
 
-    // 1 saniyelik sessiz buffer oluştur ve döngüye al
     let frameCount = AVAudioFrameCount(44100)
     guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else { return }
     buffer.frameLength = frameCount
-    // Buffer sıfırlanmış gelir (sessizlik)
 
     do {
       try engine.start()

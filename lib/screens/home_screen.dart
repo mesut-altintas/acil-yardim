@@ -9,6 +9,7 @@ import '../models/trigger_log.dart';
 import '../services/bluetooth_trigger_service.dart';
 import '../services/emergency_service.dart';
 import '../services/firestore_service.dart';
+import '../services/watch_trigger_service.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final BluetoothTriggerService _btService = BluetoothTriggerService();
   final EmergencyService _emergencyService = EmergencyService();
   final FirestoreService _firestoreService = FirestoreService();
+  final WatchTriggerService _watchService = WatchTriggerService();
 
   bool _isActive = true;
   TriggerStatus _triggerStatus = TriggerStatus.idle;
@@ -37,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   StreamSubscription? _settingsSubscription;
   StreamSubscription? _triggerStatusSubscription;
   StreamSubscription? _btTriggerSubscription;
+  StreamSubscription? _watchTriggerSubscription;
 
   // ACİL basılı tut
   late AnimationController _emergencyHoldController;
@@ -56,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _initAnimations();
     _initSubscriptions();
     _btService.start();
+    _watchService.init();
     _checkAccessibility();
     _requestBackgroundLocation();
     _registerFcmToken();
@@ -333,6 +337,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         }
       }
     });
+
+    // Apple Watch tetiklemelerini dinle (iOS only)
+    if (Platform.isIOS) {
+      _watchTriggerSubscription = _watchService.triggerStream.listen((event) {
+        if (!mounted) return;
+        if (event == 'emergency') {
+          if (_isActive && _triggerStatus == TriggerStatus.idle) {
+            HapticFeedback.heavyImpact();
+            _emergencyService.trigger();
+          }
+        } else if (event == 'safe') {
+          if (!_isSafeSending) {
+            _onSafeTriggered();
+          }
+        }
+      });
+    }
   }
 
   // ── ACİL ──
@@ -1184,6 +1205,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _settingsSubscription?.cancel();
     _triggerStatusSubscription?.cancel();
     _btTriggerSubscription?.cancel();
+    _watchTriggerSubscription?.cancel();
     _pulseController.dispose();
     _emergencyHoldController.dispose();
     _safeHoldController.dispose();
