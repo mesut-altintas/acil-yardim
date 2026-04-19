@@ -98,18 +98,26 @@ unless existing_embed
   embed_script.name         = 'Embed Watch Content'
   embed_script.shell_path   = '/bin/sh'
   embed_script.shell_script = <<~'BASH'
-    WATCH_APP="${BUILT_PRODUCTS_DIR}/AcilYardim Watch App.app"
+    # BUILT_PRODUCTS_DIR = Release-iphoneos, Watch app = Release-watchos
+    WATCHOS_DIR="${BUILT_PRODUCTS_DIR%Release-iphoneos*}Release-watchos"
+    WATCH_APP="${WATCHOS_DIR}/AcilYardim Watch App.app"
+
+    # Bulunamazsa DerivedData içinde ara
+    if [ ! -d "$WATCH_APP" ]; then
+      WATCH_APP=$(find "${BUILT_PRODUCTS_DIR}/.." -name "AcilYardim Watch App.app" -maxdepth 4 2>/dev/null | head -1)
+    fi
+
     DEST="${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Watch"
     if [ -d "$WATCH_APP" ]; then
       mkdir -p "$DEST"
       cp -Rf "$WATCH_APP" "$DEST/"
-      echo "[embed_watch] Kopyalandı: $DEST"
+      echo "[embed_watch] Kopyalandı: $WATCH_APP → $DEST"
     else
-      echo "[embed_watch] Watch app bulunamadı: $WATCH_APP"
+      echo "[embed_watch] Watch app bulunamadı, atlanıyor"
       exit 0
     fi
   BASH
-  embed_script.input_paths  = ["$(BUILT_PRODUCTS_DIR)/AcilYardim Watch App.app"]
+  embed_script.input_paths  = ["$(BUILT_PRODUCTS_DIR)/../Release-watchos/AcilYardim Watch App.app"]
   embed_script.output_paths = ["$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Watch/AcilYardim Watch App.app"]
 
   thin_binary_index = runner_target.build_phases.index do |p|
