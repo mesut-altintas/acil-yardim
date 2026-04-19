@@ -56,8 +56,7 @@ config_list.default_configuration_is_visible = '0'
     'SUPPORTED_PLATFORMS'                   => 'watchos watchsimulator',
     'SKIP_INSTALL'                                        => 'YES',
     'ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'               => 'NO',
-    # GENERATE_INFOPLIST_FILE: Xcode'un Info.plist'i build settings'ten üretmesi
-    # INFOPLIST_FILE yerine bu yöntem daha güvenilir (özellikle manuel PBXNativeTarget'ta)
+    'INFOPLIST_FILE'                                      => 'AcilYardim Watch App/Info.plist',
     'GENERATE_INFOPLIST_FILE'                             => 'YES',
     'INFOPLIST_KEY_CFBundleName'                          => 'AcilYardim Watch App',
     'INFOPLIST_KEY_CFBundleDisplayName'                   => 'Güvendeyim',
@@ -76,11 +75,28 @@ config_list.default_configuration_is_visible = '0'
 end
 watch_target.build_configuration_list = config_list
 
-# ── 4. Build fazları (minimal — sadece Sources, Resources, Frameworks) ──
-sources_phase   = project.new(Xcodeproj::Project::Object::PBXSourcesBuildPhase)
-resources_phase = project.new(Xcodeproj::Project::Object::PBXResourcesBuildPhase)
+# ── 4. Build fazları ──
+sources_phase    = project.new(Xcodeproj::Project::Object::PBXSourcesBuildPhase)
+resources_phase  = project.new(Xcodeproj::Project::Object::PBXResourcesBuildPhase)
 frameworks_phase = project.new(Xcodeproj::Project::Object::PBXFrameworksBuildPhase)
-watch_target.build_phases.concat([sources_phase, resources_phase, frameworks_phase])
+
+# GENERATE_INFOPLIST_FILE manuel target'larda güvenilmez; build sonrası kontrol et
+plist_ensure = project.new(Xcodeproj::Project::Object::PBXShellScriptBuildPhase)
+plist_ensure.name        = 'Ensure Info.plist in Bundle'
+plist_ensure.shell_path  = '/bin/sh'
+plist_ensure.shell_script = <<~'BASH'
+  BUILT_PLIST="${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Info.plist"
+  SOURCE_PLIST="${SRCROOT}/AcilYardim Watch App/Info.plist"
+  if [ ! -f "$BUILT_PLIST" ]; then
+    echo "[watch_plist] Info.plist bulunamadı, kaynaktan kopyalanıyor: $SOURCE_PLIST"
+    cp "$SOURCE_PLIST" "$BUILT_PLIST"
+  else
+    echo "[watch_plist] Info.plist mevcut: $BUILT_PLIST"
+  fi
+BASH
+plist_ensure.run_only_for_deployment_postprocessing = '0'
+
+watch_target.build_phases.concat([sources_phase, resources_phase, frameworks_phase, plist_ensure])
 
 # ── 5. Dosya grubu + Swift kaynakları ──
 watch_group = project.main_group.new_group(WATCH_TARGET_NAME, WATCH_FILES_DIR)
