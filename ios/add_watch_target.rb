@@ -54,7 +54,6 @@ config_list.default_configuration_is_visible = '0'
     'TARGETED_DEVICE_FAMILY'                => '4',
     'SDKROOT'                               => 'watchos',
     'SUPPORTED_PLATFORMS'                   => 'watchos watchsimulator',
-    'INFOPLIST_FILE'                        => "#{WATCH_FILES_DIR}/Info.plist",
     'SKIP_INSTALL'                                        => 'YES',
     'ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'               => 'NO',
     # GENERATE_INFOPLIST_FILE: Xcode'un Info.plist'i build settings'ten üretmesi
