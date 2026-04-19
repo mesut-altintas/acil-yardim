@@ -1,13 +1,11 @@
 #!/usr/bin/env ruby
-# Watch App target'ı Xcode projesine programatik olarak ekler.
+# Watch App target'ı Xcode projesine + scheme'e ekler.
 # İdempotent: target zaten varsa hiçbir şey yapmaz.
-#
-# new_target(:watch2_app) yerine PBXNativeTarget elle oluşturuluyor —
-# çünkü new_target otomatik fazlar ekleyip "Multiple commands produce" hatasına yol açıyor.
 
 require 'xcodeproj'
 
 PROJECT_PATH      = 'ios/Runner.xcodeproj'
+SCHEME_PATH       = 'ios/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme'
 WATCH_TARGET_NAME = 'AcilYardim Watch App'
 WATCH_BUNDLE_ID   = 'com.example.acilYardim.watchapp'
 WATCH_FILES_DIR   = 'AcilYardim Watch App'
@@ -20,31 +18,32 @@ if project.targets.any? { |t| t.name == WATCH_TARGET_NAME }
   exit 0
 end
 
-puts "[watch_setup] Watch target oluşturuluyor (manuel PBXNativeTarget)..."
+puts "[watch_setup] Watch target oluşturuluyor..."
 
 # ── 1. Ürün referansı ──
-products_group = project.products_group
 watch_product = project.new(Xcodeproj::Project::Object::PBXFileReference)
-watch_product.path             = "#{WATCH_TARGET_NAME}.app"
-watch_product.source_tree      = 'BUILT_PRODUCTS_DIR'
-watch_product.include_in_index = '0'
+watch_product.path               = "#{WATCH_TARGET_NAME}.app"
+watch_product.source_tree        = 'BUILT_PRODUCTS_DIR'
+watch_product.include_in_index   = '0'
 watch_product.explicit_file_type = 'wrapper.application'
-products_group << watch_product
+project.products_group << watch_product
 
 # ── 2. PBXNativeTarget ──
 watch_target = project.new(Xcodeproj::Project::Object::PBXNativeTarget)
-watch_target.name             = WATCH_TARGET_NAME
-watch_target.product_name     = WATCH_TARGET_NAME
-watch_target.product_type     = 'com.apple.product-type.application.watchapp2'
+watch_target.name              = WATCH_TARGET_NAME
+watch_target.product_name      = WATCH_TARGET_NAME
+watch_target.product_type      = 'com.apple.product-type.application.watchapp2'
 watch_target.product_reference = watch_product
 project.targets << watch_target
 
+puts "[watch_setup] Watch target UUID: #{watch_target.uuid}"
+
 # ── 3. Build konfigürasyonları ──
 config_list = project.new(Xcodeproj::Project::Object::XCConfigurationList)
-config_list.default_configuration_name      = 'Release'
+config_list.default_configuration_name       = 'Release'
 config_list.default_configuration_is_visible = '0'
 
-%w[Debug Release].each do |config_name|
+%w[Debug Release Profile].each do |config_name|
   config = project.new(Xcodeproj::Project::Object::XCBuildConfiguration)
   config.name = config_name
   config.build_settings = {
@@ -66,27 +65,19 @@ config_list.default_configuration_is_visible = '0'
   }
   config_list.build_configurations << config
 end
-
 watch_target.build_configuration_list = config_list
 
-# ── 4. Sadece gerekli build fazları — elle, minimal ──
-# Sources fazı
-sources_phase = project.new(Xcodeproj::Project::Object::PBXSourcesBuildPhase)
-watch_target.build_phases << sources_phase
-
-# Resources fazı
+# ── 4. Build fazları (minimal — sadece Sources, Resources, Frameworks) ──
+sources_phase   = project.new(Xcodeproj::Project::Object::PBXSourcesBuildPhase)
 resources_phase = project.new(Xcodeproj::Project::Object::PBXResourcesBuildPhase)
-watch_target.build_phases << resources_phase
-
-# Frameworks fazı
 frameworks_phase = project.new(Xcodeproj::Project::Object::PBXFrameworksBuildPhase)
-watch_target.build_phases << frameworks_phase
+watch_target.build_phases.concat([sources_phase, resources_phase, frameworks_phase])
 
-# ── 5. Dosya grubu + kaynak ekle ──
+# ── 5. Dosya grubu + Swift kaynakları ──
 watch_group = project.main_group.new_group(WATCH_TARGET_NAME, WATCH_FILES_DIR)
 
 %w[AcilYardimWatchApp.swift ContentView.swift].each do |filename|
-  file_ref = watch_group.new_file(filename)
+  file_ref   = watch_group.new_file(filename)
   build_file = project.new(Xcodeproj::Project::Object::PBXBuildFile)
   build_file.file_ref = file_ref
   sources_phase.files << build_file
@@ -94,13 +85,10 @@ watch_group = project.main_group.new_group(WATCH_TARGET_NAME, WATCH_FILES_DIR)
 end
 watch_group.new_file('Info.plist')
 
-# ── 6. Runner target'ı bul ──
-# add_dependency KULLANMA — Flutter kendi companion build mekanizmasıyla
-# Watch app'i zaten derliyor. İkinci bir bağımlılık "Multiple commands produce" hatasına yol açar.
+# ── 6. Runner'a shell script embed fazı ekle (input/output tanımlı — döngü önler) ──
 runner_target = project.targets.find { |t| t.name == 'Runner' }
 raise "Runner target bulunamadı!" unless runner_target
 
-# ── 7. Embed Watch Content: Shell Script fazı (input/output ile döngü önleme) ──
 existing_embed = runner_target.build_phases.find do |p|
   p.respond_to?(:name) && p.name == 'Embed Watch Content'
 end
@@ -117,7 +105,8 @@ unless existing_embed
       cp -Rf "$WATCH_APP" "$DEST/"
       echo "[embed_watch] Kopyalandı: $DEST"
     else
-      echo "[embed_watch] Watch app bulunamadı, atlanıyor: $WATCH_APP"
+      echo "[embed_watch] Watch app bulunamadı: $WATCH_APP"
+      exit 0
     fi
   BASH
   embed_script.input_paths  = ["$(BUILT_PRODUCTS_DIR)/AcilYardim Watch App.app"]
@@ -137,4 +126,44 @@ unless existing_embed
 end
 
 project.save
+puts "[watch_setup] Proje kaydedildi."
+
+# ── 7. Runner.xcscheme'e Watch target'ı ekle ──
+# buildImplicitDependencies=YES ile scheme'deki target'lar derlenir.
+# add_dependency() kullanmıyoruz — "Multiple commands produce" hatasını önlemek için.
+puts "[watch_setup] Scheme güncelleniyor: #{SCHEME_PATH}"
+
+scheme_xml = File.read(SCHEME_PATH)
+
+# Zaten eklenmiş mi?
+if scheme_xml.include?(WATCH_TARGET_NAME)
+  puts "[watch_setup] Watch target zaten scheme'de, atlanıyor."
+else
+  watch_entry = <<~XML
+        <BuildActionEntry
+           buildForTesting = "NO"
+           buildForRunning = "NO"
+           buildForProfiling = "NO"
+           buildForArchiving = "YES"
+           buildForAnalyzing = "NO">
+           <BuildableReference
+              BuildableIdentifier = "primary"
+              BlueprintIdentifier = "#{watch_target.uuid}"
+              BuildableName = "#{WATCH_TARGET_NAME}.app"
+              BlueprintName = "#{WATCH_TARGET_NAME}"
+              ReferencedContainer = "container:Runner.xcodeproj">
+           </BuildableReference>
+        </BuildActionEntry>
+  XML
+
+  # Runner BuildActionEntry'sinden hemen ÖNCE ekle
+  scheme_xml.sub!(
+    %r{(\s*</BuildActionEntries>)},
+    "#{watch_entry.rstrip}\n\\1"
+  )
+
+  File.write(SCHEME_PATH, scheme_xml)
+  puts "[watch_setup] Watch target scheme'e eklendi."
+end
+
 puts "[watch_setup] Tamamlandı."
