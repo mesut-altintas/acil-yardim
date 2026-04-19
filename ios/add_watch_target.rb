@@ -57,6 +57,7 @@ config_list.default_configuration_is_visible = '0'
     'INFOPLIST_FILE'                        => "#{WATCH_FILES_DIR}/Info.plist",
     'SKIP_INSTALL'                          => 'YES',
     'ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES' => 'NO',
+    'GENERATE_INFOPLIST_FILE'               => 'NO',
     'CODE_SIGN_STYLE'                       => 'Automatic',
     'DEVELOPMENT_TEAM'                      => '$(DEVELOPMENT_TEAM)',
     'LD_RUNPATH_SEARCH_PATHS'               => '$(inherited) @executable_path/Frameworks',
