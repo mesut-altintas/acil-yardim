@@ -55,14 +55,23 @@ config_list.default_configuration_is_visible = '0'
     'SDKROOT'                               => 'watchos',
     'SUPPORTED_PLATFORMS'                   => 'watchos watchsimulator',
     'INFOPLIST_FILE'                        => "#{WATCH_FILES_DIR}/Info.plist",
-    'SKIP_INSTALL'                          => 'YES',
-    'ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES' => 'NO',
-    'GENERATE_INFOPLIST_FILE'               => 'NO',
-    'CODE_SIGN_STYLE'                       => 'Automatic',
-    'DEVELOPMENT_TEAM'                      => '$(DEVELOPMENT_TEAM)',
-    'LD_RUNPATH_SEARCH_PATHS'               => '$(inherited) @executable_path/Frameworks',
-    'SWIFT_OPTIMIZATION_LEVEL'              => config_name == 'Debug' ? '-Onone' : '-O',
-    'DEBUG_INFORMATION_FORMAT'              => config_name == 'Debug' ? 'dwarf' : 'dwarf-with-dsym',
+    'SKIP_INSTALL'                                        => 'YES',
+    'ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES'               => 'NO',
+    # GENERATE_INFOPLIST_FILE: Xcode'un Info.plist'i build settings'ten üretmesi
+    # INFOPLIST_FILE yerine bu yöntem daha güvenilir (özellikle manuel PBXNativeTarget'ta)
+    'GENERATE_INFOPLIST_FILE'                             => 'YES',
+    'INFOPLIST_KEY_CFBundleName'                          => 'AcilYardim Watch App',
+    'INFOPLIST_KEY_CFBundleDisplayName'                   => 'Güvendeyim',
+    'INFOPLIST_KEY_WKApplication'                         => 'YES',
+    'INFOPLIST_KEY_WKCompanionAppBundleIdentifier'        => 'com.example.acilYardim',
+    'INFOPLIST_KEY_UISupportedInterfaceOrientations'      => '',
+    'MARKETING_VERSION'                                   => '1.0',
+    'CURRENT_PROJECT_VERSION'                             => '1',
+    'CODE_SIGN_STYLE'                                     => 'Automatic',
+    'DEVELOPMENT_TEAM'                                    => '$(DEVELOPMENT_TEAM)',
+    'LD_RUNPATH_SEARCH_PATHS'                             => '$(inherited) @executable_path/Frameworks',
+    'SWIFT_OPTIMIZATION_LEVEL'                            => config_name == 'Debug' ? '-Onone' : '-O',
+    'DEBUG_INFORMATION_FORMAT'                            => config_name == 'Debug' ? 'dwarf' : 'dwarf-with-dsym',
   }
   config_list.build_configurations << config
 end
