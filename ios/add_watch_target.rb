@@ -32,7 +32,7 @@ project.products_group << watch_product
 watch_target = project.new(Xcodeproj::Project::Object::PBXNativeTarget)
 watch_target.name              = WATCH_TARGET_NAME
 watch_target.product_name      = WATCH_TARGET_NAME
-watch_target.product_type      = 'com.apple.product-type.application.watchapp2'
+watch_target.product_type      = 'com.apple.product-type.application'
 watch_target.product_reference = watch_product
 project.targets << watch_target
 
