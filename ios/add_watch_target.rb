@@ -94,11 +94,11 @@ watch_group = project.main_group.new_group(WATCH_TARGET_NAME, WATCH_FILES_DIR)
 end
 watch_group.new_file('Info.plist')
 
-# ── 6. Runner'a bağımlılık ekle ──
+# ── 6. Runner target'ı bul ──
+# add_dependency KULLANMA — Flutter kendi companion build mekanizmasıyla
+# Watch app'i zaten derliyor. İkinci bir bağımlılık "Multiple commands produce" hatasına yol açar.
 runner_target = project.targets.find { |t| t.name == 'Runner' }
 raise "Runner target bulunamadı!" unless runner_target
-
-runner_target.add_dependency(watch_target)
 
 # ── 7. Embed Watch Content: Shell Script fazı (input/output ile döngü önleme) ──
 existing_embed = runner_target.build_phases.find do |p|
