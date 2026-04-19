@@ -110,6 +110,26 @@ jobs:
             DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
             ONLY_ACTIVE_ARCH=NO
 
+      - name: Inject Watch Info.plist if missing
+        run: |
+          WATCH_APP=$(find "$RUNNER_TEMP/Runner.xcarchive" -name "AcilYardim Watch App.app" 2>/dev/null | head -1)
+          if [ -z "$WATCH_APP" ]; then
+            echo "[watch_plist] Watch app archive'de bulunamadı, atlanıyor"
+            exit 0
+          fi
+          echo "[watch_plist] Watch app: $WATCH_APP"
+          ls "$WATCH_APP/"
+          if [ ! -f "$WATCH_APP/Info.plist" ]; then
+            echo "[watch_plist] Info.plist EKSİK — kaynaktan kopyalanıyor"
+            cp "ios/AcilYardim Watch App/Info.plist" "$WATCH_APP/Info.plist"
+            SIGN_ID=$(security find-identity -v -p codesigning | grep -E "iPhone Distribution|Apple Distribution" | head -1 | awk '{print $2}')
+            echo "[watch_plist] Yeniden imzalanıyor: $SIGN_ID"
+            codesign --force --sign "$SIGN_ID" --preserve-metadata=entitlements,requirements,flags "$WATCH_APP"
+            echo "[watch_plist] Tamamlandı"
+          else
+            echo "[watch_plist] Info.plist zaten mevcut, işlem gerekmez"
+          fi
+
       - name: Export IPA (App Store)
         run: |
           cat > /tmp/ExportOptions.plist << EOF
