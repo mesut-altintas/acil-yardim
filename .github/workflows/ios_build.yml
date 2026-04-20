@@ -112,13 +112,19 @@ jobs:
 
       - name: Inject Watch Info.plist if missing
         run: |
-          WATCH_APP=$(find "$RUNNER_TEMP/Runner.xcarchive" -name "AcilYardim Watch App.app" 2>/dev/null | head -1)
+          # -type d: sadece gerçek dizinleri bul, bozuk symlinkleri atla
+          WATCH_APP=$(find "$RUNNER_TEMP/Runner.xcarchive" -name "AcilYardim Watch App.app" -type d 2>/dev/null | head -1)
           if [ -z "$WATCH_APP" ]; then
-            echo "[watch_plist] Watch app archive'de bulunamadı, atlanıyor"
+            echo "[watch_plist] Watch app (dir) bulunamadı, symlink dene..."
+            WATCH_APP=$(find "$RUNNER_TEMP/Runner.xcarchive" -name "AcilYardim Watch App.app" 2>/dev/null | head -1)
+            WATCH_APP=$(realpath "$WATCH_APP" 2>/dev/null || echo "")
+          fi
+          if [ -z "$WATCH_APP" ] || [ ! -d "$WATCH_APP" ]; then
+            echo "[watch_plist] Watch app dizin olarak erişilemiyor, atlanıyor"
             exit 0
           fi
           echo "[watch_plist] Watch app: $WATCH_APP"
-          ls "$WATCH_APP/"
+          ls -la "$WATCH_APP/"
           if [ ! -f "$WATCH_APP/Info.plist" ]; then
             echo "[watch_plist] Info.plist EKSİK — kaynaktan kopyalanıyor"
             cp "ios/AcilYardim Watch App/Info.plist" "$WATCH_APP/Info.plist"
@@ -127,7 +133,7 @@ jobs:
             codesign --force --sign "$SIGN_ID" --preserve-metadata=entitlements,requirements,flags "$WATCH_APP"
             echo "[watch_plist] Tamamlandı"
           else
-            echo "[watch_plist] Info.plist zaten mevcut, işlem gerekmez"
+            echo "[watch_plist] Info.plist zaten mevcut"
           fi
 
       - name: Export IPA (App Store)
