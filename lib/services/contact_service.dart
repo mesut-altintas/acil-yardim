@@ -18,27 +18,9 @@ class ContactService {
   // Telefon rehberinden kişi seç
   // ─────────────────────────────────────────────
 
-  /// Sistem rehber seçicisini aç ve tam kişi bilgisini döndür.
-  /// openExternalPick() bazen boş phones listesiyle döner;
-  /// bu durumda getContact ile tam veri yüklenir.
+  /// Sistem rehber seçicisini aç ve kişiyi döndür.
   Future<Contact?> pickContact() async {
-    final contact = await FlutterContacts.openExternalPick();
-    if (contact == null) return null;
-    if (contact.phones.isNotEmpty) return contact;
-
-    // Phones boş — izin isteyip tam veriyi yükle
-    try {
-      final granted = await FlutterContacts.requestPermission(readonly: true);
-      if (granted) {
-        final full = await FlutterContacts.getContact(
-          contact.id,
-          withProperties: true,
-          withThumbnail: false,
-        );
-        if (full != null) return full;
-      }
-    } catch (_) {}
-    return contact;
+    return await FlutterContacts.openExternalPick();
   }
 
   /// Seçilen rehber kişisini acil kişi olarak kaydet

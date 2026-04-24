@@ -136,20 +136,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final phoneContact = await _contactService.pickContact();
       if (phoneContact == null) return;
 
-      // Birden fazla numara varsa kullanıcıya seçtir
-      String? selectedPhone;
-      if (phoneContact.phones.length > 1) {
-        selectedPhone = await showDialog<String>(
-          context: context,
-          builder: (ctx) => _PhonePickerDialog(
-            contactName: phoneContact.displayName,
-            phones: phoneContact.phones
-                .map((p) => {'number': p.number, 'label': p.label.name})
-                .toList(),
-          ),
-        );
-        if (selectedPhone == null) return; // İptal
+      // Telefon numarası yoksa hata göster
+      if (phoneContact.phones.isEmpty) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Telefon Numarası Bulunamadı'),
+              content: const Text(
+                'Bu kişi için telefon numarası alınamadı.\n\n'
+                'Kişiyi manuel olarak ekleyebilirsiniz.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Tamam'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
       }
+
+      // Numara seçimi — tek numara olsa bile kullanıcı onaylasın
+      final selectedPhone = await showDialog<String>(
+        context: context,
+        builder: (ctx) => _PhonePickerDialog(
+          contactName: phoneContact.displayName,
+          phones: phoneContact.phones
+              .map((p) => {'number': p.number, 'label': p.label.name})
+              .toList(),
+        ),
+      );
+      if (selectedPhone == null) return; // İptal
 
       final selectedChannels = await showDialog<List<ContactChannel>>(
         context: context,
