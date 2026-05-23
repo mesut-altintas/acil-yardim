@@ -1,6 +1,7 @@
 // Kişi yönetim servisi
 // Telefon rehberinden kişi seçme ve Firestore'a kaydetme işlemleri
 
+import 'dart:io';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../models/emergency_contact.dart';
@@ -18,9 +19,29 @@ class ContactService {
   // Telefon rehberinden kişi seç
   // ─────────────────────────────────────────────
 
-  /// Sistem rehber seçicisini aç ve kişiyi döndür.
+  /// Sistem rehber seçicisini aç ve tam kişi bilgisini döndür.
+  /// iOS: izin isteyip getContact ile telefon numaralarını yükler.
   Future<Contact?> pickContact() async {
-    return await FlutterContacts.openExternalPick();
+    if (Platform.isIOS) {
+      final granted = await FlutterContacts.requestPermission(readonly: true);
+      if (!granted) return null;
+    }
+
+    final contact = await FlutterContacts.openExternalPick();
+    if (contact == null) return null;
+    if (contact.phones.isNotEmpty) return contact;
+
+    // Phones boş — tam veriyi yükle (iOS'ta her zaman gerekebilir)
+    try {
+      final full = await FlutterContacts.getContact(
+        contact.id,
+        withProperties: true,
+        withThumbnail: false,
+      );
+      return full ?? contact;
+    } catch (_) {
+      return contact;
+    }
   }
 
   /// Seçilen rehber kişisini acil kişi olarak kaydet
