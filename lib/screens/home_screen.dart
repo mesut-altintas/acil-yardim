@@ -182,6 +182,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (token == null) return;
       final settings = await _firestoreService.getSettings();
       final myPhone = settings['myPhone'] as String? ?? '';
+      final platform = Platform.isIOS ? 'ios' : 'android';
+      await _firestoreService.updateSettings({'platform': platform});
       print('[HomeScreen] FCM myPhone: "$myPhone"');
       if (myPhone.isNotEmpty) {
         await _firestoreService.registerPhoneWithFcmToken(myPhone, token);
