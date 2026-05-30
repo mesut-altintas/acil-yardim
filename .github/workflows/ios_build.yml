@@ -53,31 +53,27 @@ jobs:
 
           headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
-          # Development sertifikalarını listele
-          req = urllib.request.Request(
-              "https://api.appstoreconnect.apple.com/v1/certificates?filter[certificateType]=IOS_DEVELOPMENT&limit=20",
-              headers=headers
-          )
-          data = json.loads(urllib.request.urlopen(req).read())
-          certs = data.get("data", [])
-          print(f"Development sertifika sayısı: {len(certs)}")
-
-          if len(certs) == 0:
-              print("Silinecek sertifika yok")
-              sys.exit(0)
-
-          # Hepsini sil — build yeni bir tane oluşturacak
-          for cert in certs:
-              cert_id = cert["id"]
-              del_req = urllib.request.Request(
-                  f"https://api.appstoreconnect.apple.com/v1/certificates/{cert_id}",
-                  method="DELETE", headers=headers
+          # Development ve Distribution sertifikalarını listele ve sil
+          for cert_type in ["IOS_DEVELOPMENT", "IOS_DISTRIBUTION"]:
+              req = urllib.request.Request(
+                  f"https://api.appstoreconnect.apple.com/v1/certificates?filter[certificateType]={cert_type}&limit=20",
+                  headers=headers
               )
-              try:
-                  urllib.request.urlopen(del_req)
-                  print(f"Silindi: {cert_id}")
-              except Exception as e:
-                  print(f"Silinemedi {cert_id}: {e}")
+              data = json.loads(urllib.request.urlopen(req).read())
+              certs = data.get("data", [])
+              print(f"{cert_type} sertifika sayısı: {len(certs)}")
+
+              for cert in certs:
+                  cert_id = cert["id"]
+                  del_req = urllib.request.Request(
+                      f"https://api.appstoreconnect.apple.com/v1/certificates/{cert_id}",
+                      method="DELETE", headers=headers
+                  )
+                  try:
+                      urllib.request.urlopen(del_req)
+                      print(f"Silindi: {cert_type} {cert_id}")
+                  except Exception as e:
+                      print(f"Silinemedi {cert_type} {cert_id}: {e}")
           PYEOF
 
       - name: Install CocoaPods
