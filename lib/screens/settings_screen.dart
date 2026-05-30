@@ -970,24 +970,7 @@ class _ContactEditTile extends StatelessWidget {
           ),
           const SizedBox(width: 4),
 
-          // Sürükleme tutacağı
-          const Icon(Icons.drag_handle, color: Colors.white30),
-          const SizedBox(width: 8),
-
-          // Avatar
-          CircleAvatar(
-            backgroundColor: const Color(0xFFE63946).withOpacity(0.3),
-            radius: 18,
-            child: Text(
-              contact.name.isNotEmpty ? contact.name[0].toUpperCase() : '?',
-              style: const TextStyle(
-                color: Color(0xFFE63946),
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 4),
 
           // İsim, telefon ve kanallar
           Expanded(
@@ -1030,6 +1013,8 @@ class _ContactEditTile extends StatelessWidget {
             icon: const Icon(Icons.phone, color: Colors.white38, size: 20),
             onPressed: onEditPhone,
             tooltip: 'Numarayı düzenle',
+            constraints: const BoxConstraints(),
+            padding: const EdgeInsets.all(6),
           ),
 
           // Kanal düzenleme butonu
@@ -1037,6 +1022,8 @@ class _ContactEditTile extends StatelessWidget {
             icon: const Icon(Icons.edit, color: Colors.white54, size: 20),
             onPressed: onEditChannels,
             tooltip: 'Kanalları düzenle',
+            constraints: const BoxConstraints(),
+            padding: const EdgeInsets.all(6),
           ),
 
           // Sil butonu
@@ -1044,6 +1031,8 @@ class _ContactEditTile extends StatelessWidget {
             icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
             onPressed: onDelete,
             tooltip: 'Sil',
+            constraints: const BoxConstraints(),
+            padding: const EdgeInsets.all(6),
           ),
         ],
         ),
