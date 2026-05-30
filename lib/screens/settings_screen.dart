@@ -981,6 +981,8 @@ class _ContactEditTile extends StatelessWidget {
               children: [
                 Text(
                   contact.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w500,
