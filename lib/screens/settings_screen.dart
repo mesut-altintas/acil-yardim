@@ -970,7 +970,9 @@ class _ContactEditTile extends StatelessWidget {
           ),
           const SizedBox(width: 4),
 
-          const SizedBox(width: 4),
+          // Sürükleme tutacağı
+          const Icon(Icons.drag_handle, color: Colors.white30),
+          const SizedBox(width: 8),
 
           // İsim, telefon ve kanallar
           Expanded(
