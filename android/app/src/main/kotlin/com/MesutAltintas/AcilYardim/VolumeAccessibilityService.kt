@@ -1,4 +1,4 @@
-package com.example.acil_yardim
+package com.MesutAltintas.AcilYardim
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent

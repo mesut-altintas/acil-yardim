@@ -1,4 +1,4 @@
-package com.example.acil_yardim
+package com.MesutAltintas.AcilYardim
 
 import android.content.BroadcastReceiver
 import android.content.Context

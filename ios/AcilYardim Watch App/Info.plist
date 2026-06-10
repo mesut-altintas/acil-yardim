@@ -9,7 +9,7 @@
     <key>CFBundleExecutable</key>
     <string>AcilYardim Watch App</string>
     <key>CFBundleIdentifier</key>
-    <string>com.example.acilYardim.watchapp</string>
+    <string>com.MesutAltintas.AcilYardim.watchapp</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
@@ -25,6 +25,6 @@
     <key>WKApplication</key>
     <true/>
     <key>WKCompanionAppBundleIdentifier</key>
-    <string>com.example.acilYardim</string>
+    <string>com.MesutAltintas.AcilYardim</string>
 </dict>
 </plist>

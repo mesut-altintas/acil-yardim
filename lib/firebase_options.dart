@@ -17,17 +17,17 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBh_nySoq9ikhwlwgZgkjcPTTc9q4VcZQk',
-    appId: '1:712176340011:ios:9ba6f120496bd040022e6e',
+    appId: '1:712176340011:ios:c5ba9923b50c71b9022e6e',
     messagingSenderId: '712176340011',
     projectId: 'acilyardim-aeaf4',
     storageBucket: 'acilyardim-aeaf4.firebasestorage.app',
-    iosBundleId: 'com.example.acilYardim',
-    iosClientId: '712176340011-fl2kisdcpr7skjmk07nskhd3i1kq1dbs.apps.googleusercontent.com',
+    iosBundleId: 'com.MesutAltintas.AcilYardim',
+    iosClientId: '712176340011-h11hpmmhs7eo2o2mim37g4gdl21uf56i.apps.googleusercontent.com',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBJAaocvaqOKcA7CYjbsZPP4G0miQmp7u0',
-    appId: '1:712176340011:android:a80204ecbe8271f1022e6e',
+    appId: '1:712176340011:android:036eec7c463e61ec022e6e',
     messagingSenderId: '712176340011',
     projectId: 'acilyardim-aeaf4',
     storageBucket: 'acilyardim-aeaf4.firebasestorage.app',

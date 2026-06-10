@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.acil_yardim"
+    namespace = "com.MesutAltintas.AcilYardim"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
@@ -23,8 +23,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.acil_yardim"
-        minSdk = 23
+        applicationId = "com.MesutAltintas.AcilYardim"
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
