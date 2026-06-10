@@ -20,12 +20,9 @@ class ContactService {
   // ─────────────────────────────────────────────
 
   /// Sistem rehber seçicisini aç ve tam kişi bilgisini döndür.
-  /// iOS: izin isteyip getContact ile telefon numaralarını yükler.
   Future<Contact?> pickContact() async {
-    if (Platform.isIOS) {
-      final granted = await FlutterContacts.requestPermission(readonly: true);
-      if (!granted) return null;
-    }
+    final granted = await FlutterContacts.requestPermission(readonly: true);
+    if (!granted) return null;
 
     final contact = await FlutterContacts.openExternalPick();
     if (contact == null) return null;
