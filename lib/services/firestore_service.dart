@@ -39,9 +39,9 @@ class FirestoreService {
   Future<Map<String, dynamic>> getSettings() async {
     final snap = await _settingsRef.get();
     if (!snap.exists) {
-      // İlk kez açılıyorsa varsayılan ayarları oluştur
-      await _settingsRef.set(_defaultSettings());
-      return _defaultSettings();
+      final defaults = _defaultSettings();
+      await _settingsRef.set(defaults);
+      return defaults;
     }
     return snap.data() as Map<String, dynamic>;
   }
@@ -236,10 +236,18 @@ class FirestoreService {
   // YARDIMCI METODLAR
   // ─────────────────────────────────────────────
 
-  /// Varsayılan kullanıcı ayarları
-  Map<String, dynamic> _defaultSettings() => {
-        'message': 'ACİL YARDIM! Yardıma ihtiyacım var.',
-        'callerName': 'Kullanıcı',
-        'isActive': true,
-      };
+  /// Varsayılan kullanıcı ayarları — Firebase Auth'dan gerçek ismi al
+  Map<String, dynamic> _defaultSettings() {
+    final user = FirebaseAuth.instance.currentUser;
+    final displayName = user?.displayName ?? '';
+    final nameParts = displayName.trim().split(' ');
+    final firstName = nameParts.isNotEmpty ? nameParts.first : '';
+    final callerName = firstName.isNotEmpty ? firstName : (displayName.isNotEmpty ? displayName : 'Kullanıcı');
+    return {
+      'message': 'ACİL YARDIM! Yardıma ihtiyacım var.',
+      'safeMessage': '$callerName güvende, endişelenmeyin.',
+      'callerName': callerName,
+      'isActive': true,
+    };
+  }
 }
