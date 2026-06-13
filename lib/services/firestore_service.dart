@@ -248,6 +248,7 @@ class FirestoreService {
       'safeMessage': '$callerName güvende, endişelenmeyin.',
       'callerName': callerName,
       'isActive': true,
+      'abShutterEnabled': false,
     };
   }
 }

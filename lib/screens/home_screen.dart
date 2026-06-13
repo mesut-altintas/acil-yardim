@@ -58,7 +58,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     super.initState();
     _initAnimations();
     _initSubscriptions();
-    _btService.start();
     _watchService.init();
     _checkAccessibility();
     _requestBackgroundLocation();
@@ -298,7 +297,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _initSubscriptions() {
     _settingsSubscription = _firestoreService.watchSettings().listen((settings) {
-      if (mounted) setState(() => _isActive = settings['isActive'] ?? true);
+      if (!mounted) return;
+      final abShutterEnabled = settings['abShutterEnabled'] ?? false;
+      final isActive = settings['isActive'] ?? true;
+      setState(() => _isActive = isActive);
+      if (abShutterEnabled && isActive) {
+        _btService.start();
+      } else {
+        _btService.stop();
+      }
     });
 
     _triggerStatusSubscription = _emergencyService.statusStream.listen((status) {
@@ -421,10 +428,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final newValue = !_isActive;
     setState(() => _isActive = newValue);
     await _firestoreService.setActive(newValue);
-    if (newValue) {
-      _btService.start();
-    } else {
+    if (!newValue) {
       _btService.stop();
+    } else {
+      final settings = await _firestoreService.getSettings();
+      if (settings['abShutterEnabled'] ?? false) _btService.start();
     }
   }
 

@@ -33,6 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   List<EmergencyContact> _contacts = [];
 
   bool _isSaving = false;
+  bool _abShutterEnabled = false;
 
   @override
   void initState() {
@@ -47,6 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _safeMessageController.text = settings['safeMessage'] ?? '';
     _callerNameController.text = settings['callerName'] ?? '';
     _myPhoneController.text = settings['myPhone'] ?? '';
+    if (mounted) setState(() => _abShutterEnabled = settings['abShutterEnabled'] ?? false);
   }
 
   Future<void> _loadContacts() async {
@@ -67,6 +69,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'safeMessage': _safeMessageController.text.trim(),
         'callerName': _callerNameController.text.trim(),
         'myPhone': myPhone,
+        'abShutterEnabled': _abShutterEnabled,
       });
 
       // Telefon numarası varsa FCM token ile registry'ye yaz
@@ -513,6 +516,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
             hint: 'Güvendeyim, endişelenmeyin.',
             maxLines: 3,
             label: 'Güvendeyim mesaj şablonu',
+          ),
+
+          const SizedBox(height: 24),
+
+          // ── AB Shutter 3 ──
+          _SectionHeader(title: 'AB Shutter 3', icon: Icons.bluetooth),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white10,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  value: _abShutterEnabled,
+                  onChanged: (val) async {
+                    setState(() => _abShutterEnabled = val);
+                    await _firestoreService.updateSettings({'abShutterEnabled': val});
+                  },
+                  title: const Text('AB Shutter 3 ile tetikleme',
+                      style: TextStyle(color: Colors.white)),
+                  subtitle: Text(
+                    _abShutterEnabled
+                        ? 'Aktif — ses tuşu ile tetiklenebilir'
+                        : 'Pasif — yalnızca ekran butonu çalışır',
+                    style: TextStyle(
+                      color: _abShutterEnabled ? Colors.greenAccent : Colors.white38,
+                      fontSize: 12,
+                    ),
+                  ),
+                  activeColor: const Color(0xFFE63946),
+                ),
+                if (_abShutterEnabled)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, size: 14, color: Colors.amber),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            Platform.isIOS
+                                ? 'Kilitli ekranda çalışması için arka planda sessiz ses çalar.'
+                                : 'Kilitli ekranda çalışması için Erişilebilirlik Servisi gereklidir.',
+                            style: const TextStyle(color: Colors.amber, fontSize: 11),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ),
 
           const SizedBox(height: 24),
